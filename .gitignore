@@ -1,0 +1,17 @@
+# Exclude reference repositories (separate upstream projects)
+references/sec/
+references/DUMP/
+
+# Local model link/storage
+model/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Notebook/cache noise
+.ipynb_checkpoints/
+
+/model
