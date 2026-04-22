@@ -14,6 +14,8 @@ BASELINE_STEPS=${BASELINE_STEPS:-30}
 BASELINE_EPOCHS=${BASELINE_EPOCHS:-1}
 MATH_TRAIN_SAMPLES=${MATH_TRAIN_SAMPLES:-32}
 MATH_VAL_SAMPLES=${MATH_VAL_SAMPLES:-8}
+SAVE_FREQ=${SAVE_FREQ:-10}
+TEST_FREQ=${TEST_FREQ:-10}
 
 mkdir -p "$DATA_ROOT" "$LOG_ROOT"
 
@@ -35,7 +37,7 @@ for seed in $SEEDS; do
     echo "[RUN] $RUN_NAME"
     (
       cd "$DUMP_ROOT"
-      export CUDA_VISIBLE_DEVICES=0
+      export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
       export VLLM_ATTENTION_BACKEND=XFORMERS
       export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -80,15 +82,15 @@ for seed in $SEEDS; do
         trainer.nnodes=1 \
         trainer.default_local_dir="$OUT_DIR_BASE/$RUN_NAME" \
         trainer.default_hdfs_dir=null \
-        trainer.save_freq=-1 \
-        trainer.test_freq=-1 \
+        trainer.save_freq="$SAVE_FREQ" \
+        trainer.test_freq="$TEST_FREQ" \
         trainer.total_epochs="$BASELINE_EPOCHS" \
         trainer.total_training_steps="$BASELINE_STEPS"
     ) 2>&1 | tee "$LOG_FILE"
 
     echo "[DONE] $RUN_NAME -> $LOG_FILE"
+    echo "[CHECKPOINT_DIR] $OUT_DIR_BASE/$RUN_NAME"
   done
 done
-
 
 echo '[ALL DONE] random baseline runs completed.'

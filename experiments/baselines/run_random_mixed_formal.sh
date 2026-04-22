@@ -11,12 +11,17 @@ LOG_ROOT="$ROOT/experiments/baselines/logs"
 OUT_DIR_BASE=${OUT_DIR_BASE:-/root/dump_baseline_random_mixed}
 SEED=${SEED:-42}
 
-# Baseline defaults (tomorrow run)
+# Baseline defaults
 MAX_PROMPT_LENGTH=${MAX_PROMPT_LENGTH:-768}
 MAX_RESPONSE_LENGTH=${MAX_RESPONSE_LENGTH:-160}
 ROLLOUT_N=${ROLLOUT_N:-4}
 BASELINE_STEPS=${BASELINE_STEPS:-1600}
 BASELINE_EPOCHS=${BASELINE_EPOCHS:-1}
+
+# Checkpoint policy
+SAVE_FREQ=${SAVE_FREQ:-200}
+TEST_FREQ=${TEST_FREQ:-200}
+
 RUN_NAME=${RUN_NAME:-qwen05b_random_mixed_formal_p${MAX_PROMPT_LENGTH}_r${MAX_RESPONSE_LENGTH}_n${ROLLOUT_N}_s${BASELINE_STEPS}_seed${SEED}}
 
 mkdir -p "$DATA_ROOT" "$LOG_ROOT"
@@ -48,7 +53,7 @@ LOG_FILE="$LOG_ROOT/${RUN_NAME}.log"
 
 (
   cd "$DUMP_ROOT"
-  export CUDA_VISIBLE_DEVICES=0
+  export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
   export VLLM_ATTENTION_BACKEND=XFORMERS
   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -94,11 +99,11 @@ LOG_FILE="$LOG_ROOT/${RUN_NAME}.log"
     trainer.nnodes=1 \
     trainer.default_local_dir="$OUT_DIR_BASE/$RUN_NAME" \
     trainer.default_hdfs_dir=null \
-    trainer.save_freq=-1 \
-    trainer.test_freq=-1 \
+    trainer.save_freq="$SAVE_FREQ" \
+    trainer.test_freq="$TEST_FREQ" \
     trainer.total_epochs="$BASELINE_EPOCHS" \
     trainer.total_training_steps="$BASELINE_STEPS"
 ) 2>&1 | tee "$LOG_FILE"
 
 echo "[DONE] $RUN_NAME -> $LOG_FILE"
-
+echo "[CHECKPOINT_DIR] $OUT_DIR_BASE/$RUN_NAME"
