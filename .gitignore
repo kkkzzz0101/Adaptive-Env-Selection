@@ -4,6 +4,7 @@ references/DUMP/
 
 # Local model link/storage
 model/
+/model
 
 # Python cache
 __pycache__/
@@ -14,4 +15,9 @@ __pycache__/
 # Notebook/cache noise
 .ipynb_checkpoints/
 
-/model
+# Experiment artifacts
+experiments/**/data*/
+experiments/**/logs/
+experiments/**/results*/
+*.nohup.log
+*.launch

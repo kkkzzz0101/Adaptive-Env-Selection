@@ -2,17 +2,16 @@
 set -euo pipefail
 
 ROOT='/root/adaptive env selection'
-DUMP_ROOT="$ROOT/references/DUMP"
+SEC_ROOT="$ROOT/references/sec"
 CONDA='/home/vipuser/miniconda3/bin/conda'
 MODEL_PATH=${MODEL_PATH:-/root/models/Qwen2.5-1.5B}
 MODEL_TAG=${MODEL_TAG:-qwen15b}
 
 DATA_ROOT="$ROOT/experiments/baselines/data_formal"
 LOG_ROOT="$ROOT/experiments/baselines/logs"
-OUT_DIR_BASE=${OUT_DIR_BASE:-/root/dump_baseline_random_mixed}
+OUT_DIR_BASE=${OUT_DIR_BASE:-/root/sec_baseline_random_mixed}
 SEED=${SEED:-42}
 
-# 4-GPU high-throughput baseline
 MAX_PROMPT_LENGTH=${MAX_PROMPT_LENGTH:-1024}
 MAX_RESPONSE_LENGTH=${MAX_RESPONSE_LENGTH:-160}
 ROLLOUT_N=${ROLLOUT_N:-4}
@@ -29,27 +28,19 @@ REF_LOGPROB_MICRO_BATCH_SIZE_PER_GPU=${REF_LOGPROB_MICRO_BATCH_SIZE_PER_GPU:-8}
 ROLLOUT_GPU_MEMORY_UTILIZATION=${ROLLOUT_GPU_MEMORY_UTILIZATION:-0.80}
 USE_DYNAMIC_BSZ=${USE_DYNAMIC_BSZ:-true}
 
-# Checkpoint policy (important: do not disable)
 SAVE_FREQ=${SAVE_FREQ:-200}
 TEST_FREQ=${TEST_FREQ:-200}
 
-RUN_NAME=${RUN_NAME:-${MODEL_TAG}_random_mixed_formal_4gpu_p${MAX_PROMPT_LENGTH}_r${MAX_RESPONSE_LENGTH}_n${ROLLOUT_N}_b${TRAIN_BATCH_SIZE}_s${BASELINE_STEPS}_seed${SEED}}
+RUN_NAME=${RUN_NAME:-${MODEL_TAG}_random_sec4_formal_4gpu_p${MAX_PROMPT_LENGTH}_r${MAX_RESPONSE_LENGTH}_n${ROLLOUT_N}_b${TRAIN_BATCH_SIZE}_s${BASELINE_STEPS}_seed${SEED}}
 
 mkdir -p "$DATA_ROOT" "$LOG_ROOT"
 
-$CONDA run -n aes python "$ROOT/scripts/prepare_mixed_training_dataset.py" \
-  --kk-train "$ROOT/references/DUMP/combined_logic_dataset/generate_combined_kk/combined_logic_datasets_train.parquet" \
-  --kk-test "$ROOT/references/DUMP/combined_logic_dataset/generate_combined_kk/combined_logic_datasets_test.parquet" \
-  --zebra-train "$ROOT/references/sec/data/combined/train_zebra.parquet" \
-  --zebra-test "$ROOT/references/sec/data/combined/test_zebra.parquet" \
-  --countdown-train "$ROOT/references/sec/data/combined/train_countdown.parquet" \
-  --countdown-test "$ROOT/references/sec/data/combined/test_countdown.parquet" \
-  --math-train "$ROOT/references/sec/data/math/math_train.parquet" \
-  --math-test "$ROOT/references/sec/data/math/math_test.parquet" \
+$CONDA run -n aes python "$ROOT/scripts/prepare_sec4_random_dataset.py" \
+  --sec-root "$ROOT/references/sec/data" \
   --out-root "$DATA_ROOT" \
-  --kk-levels '3,4,5,6,7,8' \
-  --zebra-houses '3,4,5,6' \
-  --countdown-diffs '1,2,3,4' \
+  --countdown-levels '1,2,3,4' \
+  --zebra-levels '1,2,3,4' \
+  --arc-levels '1,2,3,4' \
   --math-levels '1,2,3,4,5' \
   --train-per-bucket 240 \
   --val-per-bucket 30 \
@@ -63,7 +54,7 @@ VAL_FILE="$DATA_ROOT/mixed/val.parquet"
 LOG_FILE="$LOG_ROOT/${RUN_NAME}.log"
 
 (
-  cd "$DUMP_ROOT"
+  cd "$SEC_ROOT"
   export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3}
   export VLLM_ATTENTION_BACKEND=XFORMERS
   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -104,7 +95,7 @@ LOG_FILE="$LOG_ROOT/${RUN_NAME}.log"
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=999 \
     trainer.logger="['console']" \
-    trainer.project_name='baseline_random_4gpu' \
+    trainer.project_name='baseline_random_sec4_4gpu' \
     trainer.experiment_name="$RUN_NAME" \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
