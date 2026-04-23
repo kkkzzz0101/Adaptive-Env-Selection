@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT='/root/adaptive env selection'
 DUMP_ROOT="$ROOT/references/DUMP"
 CONDA='/home/vipuser/miniconda3/bin/conda'
-MODEL_PATH='/root/models/Qwen2.5-0.5B'
+MODEL_PATH=${MODEL_PATH:-/root/models/Qwen2.5-1.5B}
+MODEL_TAG=${MODEL_TAG:-qwen15b}
 
 DATA_ROOT="$ROOT/experiments/baselines/data_formal"
 LOG_ROOT="$ROOT/experiments/baselines/logs"
@@ -32,7 +33,7 @@ USE_DYNAMIC_BSZ=${USE_DYNAMIC_BSZ:-true}
 SAVE_FREQ=${SAVE_FREQ:-200}
 TEST_FREQ=${TEST_FREQ:-200}
 
-RUN_NAME=${RUN_NAME:-qwen05b_random_mixed_formal_4gpu_p${MAX_PROMPT_LENGTH}_r${MAX_RESPONSE_LENGTH}_n${ROLLOUT_N}_b${TRAIN_BATCH_SIZE}_s${BASELINE_STEPS}_seed${SEED}}
+RUN_NAME=${RUN_NAME:-${MODEL_TAG}_random_mixed_formal_4gpu_p${MAX_PROMPT_LENGTH}_r${MAX_RESPONSE_LENGTH}_n${ROLLOUT_N}_b${TRAIN_BATCH_SIZE}_s${BASELINE_STEPS}_seed${SEED}}
 
 mkdir -p "$DATA_ROOT" "$LOG_ROOT"
 

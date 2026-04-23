@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT='/root/adaptive env selection'
 DUMP_ROOT="$ROOT/references/DUMP"
 CONDA='/home/vipuser/miniconda3/bin/conda'
-MODEL_PATH='/root/models/Qwen2.5-0.5B'
+MODEL_PATH=${MODEL_PATH:-/root/models/Qwen2.5-1.5B}
+MODEL_TAG=${MODEL_TAG:-qwen15b}
 
 DATA_ROOT="$ROOT/experiments/baselines/data"
 LOG_ROOT="$ROOT/experiments/baselines/logs"
@@ -31,7 +32,7 @@ for seed in $SEEDS; do
   for setup in kk_only math_only mixed; do
     TRAIN_FILE="$DATA_ROOT/$setup/train.parquet"
     VAL_FILE="$DATA_ROOT/$setup/val.parquet"
-    RUN_NAME="qwen05b_random_${setup}_seed${seed}"
+    RUN_NAME="${MODEL_TAG}_random_${setup}_seed${seed}"
     LOG_FILE="$LOG_ROOT/${RUN_NAME}.log"
 
     echo "[RUN] $RUN_NAME"
