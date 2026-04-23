@@ -17,6 +17,13 @@ Note that we don't combine the main with ray_trainer as ray_trainer is used by o
 
 from verl import DataProto
 import torch
+# Force stable SDP backend on Ada/cuDNN combinations that fail plan search.
+if torch.cuda.is_available():
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_cudnn_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
+
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
 from verl.utils.reward_score.deepscaler import get_deepscaler_reward_fn

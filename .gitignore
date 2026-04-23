@@ -1,5 +1,18 @@
-# Exclude reference repositories (separate upstream projects)
-references/DUMP/
+# Keep DUMP vendored code ignored; only track AES hotfix files.
+references/DUMP/**
+!references/DUMP/verl/
+references/DUMP/verl/**
+!references/DUMP/verl/trainer/
+references/DUMP/verl/trainer/**
+!references/DUMP/verl/trainer/ppo/
+references/DUMP/verl/trainer/ppo/**
+!references/DUMP/verl/trainer/ppo/ray_trainer.py
+!references/DUMP/verl/utils/
+references/DUMP/verl/utils/**
+!references/DUMP/verl/utils/reward_score/
+references/DUMP/verl/utils/reward_score/**
+!references/DUMP/verl/utils/reward_score/__init__.py
+!references/DUMP/verl/utils/reward_score/sec4_mixed.py
 
 # Local model link/storage
 model/
@@ -20,3 +33,12 @@ experiments/**/logs/
 experiments/**/results*/
 *.nohup.log
 *.launch
+
+# Runtime artifacts (local only)
+checkpoints/
+logs/
+outputs/
+*.pid
+
+# Local backup scripts
+scripts/*.bak
