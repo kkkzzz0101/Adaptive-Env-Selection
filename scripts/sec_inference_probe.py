@@ -27,6 +27,9 @@ from verl.utils.reward_score.zebra import get_zebra_compute_score
 from verl.utils.reward_score.arc import get_arc_compute_score
 from verl.utils.reward_score.countdown import get_countdown_compute_score
 
+from prompt_protocol import append_protocol_text, extract_countdown_target
+from countdown_validator import validate_countdown_expression
+
 
 @dataclass
 class ProbeRow:
@@ -43,6 +46,8 @@ class ProbeRow:
     canonicalized: int
     ground_truth: Any
     response: str
+    countdown_numbers_ok: int | None = None
+    countdown_target_ok: int | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -110,6 +115,28 @@ def _messages(prompt: Any) -> list[dict[str, str]]:
                     continue
         return [{'role': 'user', 'content': prompt}]
     return [{'role': 'user', 'content': str(prompt)}]
+
+
+def _apply_prompt_protocol(msgs: list[dict[str, str]], dataset: str, target: str | None = None) -> list[dict[str, str]]:
+    out = list(msgs)
+    for i in range(len(out) - 1, -1, -1):
+        msg = out[i]
+        if not isinstance(msg, dict):
+            continue
+        if str(msg.get('role', '')).lower() != 'user':
+            continue
+
+        content = msg.get('content')
+        if not isinstance(content, str):
+            break
+
+        updated = append_protocol_text(content, dataset=dataset, target=target)
+        if updated != content:
+            msg_new = dict(msg)
+            msg_new['content'] = updated
+            out[i] = msg_new
+        break
+    return out
 
 
 def _scorers(dataset: str):
@@ -303,13 +330,16 @@ def main() -> None:
 
     rows: list[ProbeRow] = []
     for i, row in sample_df.reset_index(drop=True).iterrows():
+        gt = row['reward_model'].get('ground_truth', '') if isinstance(row['reward_model'], dict) else ''
+        target = extract_countdown_target(row['reward_model']) if args.dataset == 'countdown' else None
+
         msgs = _messages(row['prompt'])
+        msgs = _apply_prompt_protocol(msgs, dataset=args.dataset, target=target)
         prompt_text = tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer([prompt_text], return_tensors='pt')
         if has_cuda:
             inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
-        gt = row['reward_model'].get('ground_truth', '') if isinstance(row['reward_model'], dict) else ''
         diff = int(row['difficulty'])
 
         for r in range(args.rollouts):
@@ -333,6 +363,13 @@ def main() -> None:
             pass_score = float(scorer_pass(solution_str=score_text, ground_truth=gt))
             reward_score = float(scorer_reward(solution_str=score_text, ground_truth=gt))
 
+            cd_numbers_ok = None
+            cd_target_ok = None
+            if args.dataset == 'countdown' and parsed is not None and str(parsed).strip() != '':
+                v = validate_countdown_expression(str(parsed), gt)
+                cd_numbers_ok = int(bool(v.get('numbers_ok', False)))
+                cd_target_ok = int(bool(v.get('target_ok', False)))
+
             rows.append(
                 ProbeRow(
                     dataset=args.dataset,
@@ -348,6 +385,8 @@ def main() -> None:
                     canonicalized=int(canonicalized),
                     ground_truth=gt,
                     response=resp,
+                    countdown_numbers_ok=cd_numbers_ok,
+                    countdown_target_ok=cd_target_ok,
                 )
             )
 

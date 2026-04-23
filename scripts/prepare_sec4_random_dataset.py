@@ -11,12 +11,9 @@ from typing import Any, Tuple
 import numpy as np
 import pandas as pd
 
-REQUIRED_COLUMNS = ["data_source", "prompt", "ability", "reward_model", "extra_info"]
+from prompt_protocol import append_protocol_text, extract_countdown_target, infer_dataset_from_data_source
 
-BOXED_PROTOCOL_SUFFIX = (
-    "Important: Your final answer must be on the last line only, exactly as \\boxed{...}. "
-    "Do not add any text after the final boxed answer."
-)
+REQUIRED_COLUMNS = ["data_source", "prompt", "ability", "reward_model", "extra_info"]
 
 
 def _coerce_prompt_messages(prompt: Any) -> list[dict[str, Any]] | None:
@@ -44,7 +41,7 @@ def _coerce_prompt_messages(prompt: Any) -> list[dict[str, Any]] | None:
     return None
 
 
-def _enforce_final_boxed_prompt(prompt: Any) -> Any:
+def _enforce_final_boxed_prompt(prompt: Any, data_source: Any, reward_model: Any) -> Any:
     msgs = _coerce_prompt_messages(prompt)
     if not msgs:
         return prompt
@@ -62,9 +59,12 @@ def _enforce_final_boxed_prompt(prompt: Any) -> Any:
         if not isinstance(content, str):
             break
 
-        if BOXED_PROTOCOL_SUFFIX not in content:
+        dataset = infer_dataset_from_data_source(data_source)
+        target = extract_countdown_target(reward_model) if dataset == 'countdown' else None
+        updated = append_protocol_text(content, dataset=dataset, target=target)
+        if updated != content:
             msg_new = dict(msg)
-            msg_new['content'] = content.rstrip() + "\n\n" + BOXED_PROTOCOL_SUFFIX
+            msg_new['content'] = updated
             msgs[i] = msg_new
             changed = True
         break
@@ -234,7 +234,10 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
             return {'raw': ex}
         return {'raw': '' if ex is None else str(ex)}
 
-    out['prompt'] = out['prompt'].map(_enforce_final_boxed_prompt)
+    out['prompt'] = out.apply(
+        lambda r: _enforce_final_boxed_prompt(r['prompt'], r.get('data_source', ''), r.get('reward_model')),
+        axis=1,
+    )
     out['reward_model'] = out['reward_model'].map(norm_rm)
     out['extra_info'] = out['extra_info'].map(norm_ex)
     return out
