@@ -1,5 +1,4 @@
 # Exclude reference repositories (separate upstream projects)
-references/sec/
 references/DUMP/
 
 # Local model link/storage
