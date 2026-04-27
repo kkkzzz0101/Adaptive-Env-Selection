@@ -1,0 +1,5 @@
+difficulty,n,format_valid_rate,parse_success_rate,task_pass_rate,reward_mean
+1,25,1.0,1.0,0.36,0.424
+2,25,1.0,1.0,0.24,0.316
+3,25,1.0,1.0,0.4,0.46
+4,25,1.0,1.0,0.12,0.20800000000000002

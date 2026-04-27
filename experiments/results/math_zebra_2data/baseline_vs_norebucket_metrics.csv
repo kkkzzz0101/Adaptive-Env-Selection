@@ -1,0 +1,6 @@
+run,step,math_train,zebra_train
+baseline_random,100,0.44,0.263
+baseline_random,200,0.46,0.25
+scheduler_no_rebucket,60,0.44,0.25
+scheduler_no_rebucket,100,0.42,0.237
+scheduler_no_rebucket,200,0.48,0.338
