@@ -140,7 +140,7 @@ def weighted_pass_rate(path: Path) -> float:
 
 def fig_method_pipeline() -> None:
     c, path = new_canvas("fig_method_pipeline", 560, 210)
-    text(c, 280, 188, "Adaptive Environment Selection feedback loop", size=12, bold=True)
+    text(c, 280, 188, "DURCL feedback loop", size=12, bold=True)
 
     box(c, 18, 120, 104, 48, "Math + Zebra\ntasks", fill=colors.HexColor("#EFF6FF"))
     box(c, 150, 120, 104, 48, "Initial difficulty\nbuckets", fill=colors.HexColor("#F0FDF4"))
@@ -148,7 +148,7 @@ def fig_method_pipeline() -> None:
     box(c, 414, 120, 104, 48, "GRPO / verl\ntraining", fill=colors.HexColor("#FDF2F8"))
     box(c, 414, 32, 104, 48, "Observed\n|advantage|", fill=LIGHT_GRAY)
     box(c, 282, 32, 104, 48, "Decayed micro-\nbucket history", fill=LIGHT_GRAY)
-    box(c, 150, 32, 104, 48, "Neighbor-only\nre-bucketing", fill=LIGHT_GRAY)
+    box(c, 150, 32, 104, 48, "Neighbor-only\nrebucketing", fill=LIGHT_GRAY)
 
     arrow(c, 122, 144, 150, 144)
     arrow(c, 254, 144, 282, 144)
@@ -179,7 +179,7 @@ def fig_step200_math_zebra() -> None:
     bar_w = 30
     for i, label in enumerate(labels):
         cx = x0 + group_w * (i + 0.5)
-        vals = [(baseline[i], BLUE, "Random"), (scheduler[i], ORANGE, "AES")]
+        vals = [(baseline[i], BLUE, "Random"), (scheduler[i], ORANGE, "DURCL")]
         for j, (val, col, _) in enumerate(vals):
             bx = cx + (-bar_w - 3 if j == 0 else 3)
             bh = h * val / ymax
@@ -194,7 +194,7 @@ def fig_step200_math_zebra() -> None:
     text(c, 231, 199, "Random", size=8, anchor="start")
     c.setFillColor(ORANGE)
     c.rect(276, 198, 9, 9, stroke=0, fill=1)
-    text(c, 289, 199, "AES", size=8, anchor="start")
+    text(c, 289, 199, "DURCL", size=8, anchor="start")
     finish(c, path)
 
 
@@ -408,7 +408,7 @@ def fig_toy_rebucket_guardrails() -> None:
     }
 
     c, path = new_canvas("fig_toy_rebucket_guardrails", 610, 230)
-    text(c, 305, 211, "Toy re-bucketing guardrails", size=11, bold=True)
+    text(c, 305, 211, "Toy rebucketing guardrails", size=11, bold=True)
     panel_w = 170
     y_min, y_max = 0.32, 0.75
     for p, scenario in enumerate(scenarios):

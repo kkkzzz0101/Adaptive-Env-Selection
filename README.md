@@ -1,10 +1,10 @@
-# Adaptive Env Selection (AES)
+# DURCL (Automated Distribution-Level Rebucketing Curriculum Learning)
 
-Current codebase status: **SEC data/protocol + DUMP trainer + AES scheduler module**.
+Current codebase status: **Math+Zebra course-project experiments + DUMP trainer + DURCL scheduler module**.
 
 ## What This Repo Runs Now
 - **Training core**: `references/DUMP/verl` (used for random baseline training runs).
-- **Data/protocol**: SEC-style mixed tasks (Countdown / Zebra / ARC-1D / Math).
+- **Data/protocol for the course report**: Math+Zebra mixed reasoning tasks.
 - **Scoring**:
   - SEC path patches in `references/sec/verl/verl/...`
   - DUMP path custom scorer routing in `references/DUMP/verl/utils/reward_score/`
@@ -57,17 +57,25 @@ For larger machines, increase `CUDA_VISIBLE_DEVICES` and `N_GPUS_PER_NODE` (scri
   - `math_train = 0.560`
   - `zebra_train = 0.275`
 
+### Accuracy-init no-rebucket validation
+- step 100:
+  - `math_train = 0.480`
+  - `zebra_train = 0.263`
+- step 200:
+  - `math_train = 0.500`
+  - `zebra_train = 0.300`
+
 ## Main Analysis Direction
 
 - Even with coarse difficulty-only initialization, rebucketing already shows meaningful structural correction signals.
-- If initialization is changed to accuracy-based grouping, rebucketing is expected to be cleaner (less noisy drift) and more likely to yield stronger gains.
+- Accuracy-based initialization now has a no-rebucket validation result; the corresponding rebucketing run remains the next comparison to complete.
 
 ## Detailed Report
 - `docs/result_report.md`
 
 ## Ongoing Work
-- Acc-based rebucket experiments are currently running; updated comparison tables/plots will be pushed once completed.
+- Acc-based rebucket results are still pending; updated comparison tables/plots should be pushed once completed.
 
 ## Notes
 - Runtime artifacts (`checkpoints/`, `logs/`, `outputs/`) are intentionally git-ignored.
-- This repo tracks only AES-related hotfix files under `references/DUMP/` rather than the full vendor tree.
+- This repo tracks only DURCL-related hotfix files under `references/DUMP/` rather than the full vendor tree.

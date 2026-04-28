@@ -1,4 +1,4 @@
-# Result Report: Adaptive Env Selection (Difficulty-init Rebucket)
+# Result Report: DURCL Difficulty-init Rebucketing
 
 ## 1) One-line takeaway
 

@@ -8,7 +8,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 
-\title{Adaptive Environment Selection for RL-Based LLM Post-Training}
+\title{DURCL: Automated Distribution-Level Rebucketing Curriculum Learning}
 \author{DSAA3053 Course Project}
 \date{April 28, 2026}
 
@@ -18,119 +18,144 @@
   \titlepage
 \end{frame}
 
-\begin{frame}{Project Track and Research Question}
+\begin{frame}{Background: GRPO Signal Is State-Dependent}
   \begin{itemize}
-    \item Track: Option 1, algorithm development.
-    \item Problem: RL post-training mixes Math and Zebra reasoning environments.
-    \item Question: can online advantage signals guide environment selection and correct imperfect static difficulty buckets?
-    \item Conservative claim: AES shows interpretable adaptive behavior and step-200 gains, while re-bucketing reveals composition drift.
+    \item GRPO uses group-relative advantages from sampled rollouts.
+    \item Too easy: most rollouts are correct, so the relative update signal is small.
+    \item Too hard: most rollouts fail, so the relative update signal is also small.
+    \item The useful training distribution changes as the model learns.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Method: AES Feedback Loop}
+\begin{frame}{Formulation: Non-stationary Bandit}
+  \begin{itemize}
+    \item We model each curriculum cluster as a bandit arm.
+    \item Arm value is estimated from recent absolute advantage.
+    \item Non-stationarity: the best arm changes during training.
+    \item Goal: adapt sampling while keeping the curriculum structure interpretable.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Starting Point: DUMP}
+  \begin{itemize}
+    \item DUMP tracks distribution-level absolute advantage with a sliding window.
+    \item It uses UCB to sample distributions with high estimated learnability or uncertainty.
+    \item We keep the core idea: advantage magnitude is a learner-state signal.
+    \item DURCL changes the state tracker and adds micro-bucket rebucketing.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Why Mixed Math+Zebra Needs More}
+  \begin{itemize}
+    \item Different scoring standards and output formats make raw task signals less directly comparable.
+    \item Math and Zebra have different problem geometry and learning rates.
+    \item A nominal difficulty cluster may not stay internally coherent after training starts.
+    \item Distribution-level scheduling changes weights, but does not repair bad cluster membership.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{DURCL Overview}
   \centering
-  \includegraphics[width=0.95\linewidth]{figures/fig_method_pipeline.pdf}
+  \includegraphics[width=0.92\linewidth]{figures/fig_method_pipeline.pdf}
 \end{frame}
 
 \begin{frame}{Scheduler Core}
   \begin{itemize}
-    \item Compared with DUMP: replace distribution-level sliding windows with exponential-decay advantage state.
-    \item Mixed-data extension: add micro-bucket re-bucketing for Math/Zebra groups with different learning-drift rates.
-    \item Initial clusters from difficulty labels or accuracy calibration.
-    \item Decayed advantage state:
+    \item Replace DUMP's sliding window with exponential-decay advantage state:
     \[
       s_i \leftarrow \lambda s_i + (1-\lambda)|A_i|.
     \]
-    \item Cluster sampling by UCB plus softmax and probability floor:
+    \item Cluster sampling by UCB plus softmax:
     \[
-      \mathrm{UCB}_c = v_c + \beta \sqrt{\frac{2\log(N+1)}{n_c+1}}.
+      U_c = v_c + \beta \sqrt{\frac{2\log(N+1)}{n_c+1}}.
     \]
-    \item Re-bucketing is local: compare each micro-bucket only with its current and adjacent clusters.
+    \item Rebucketing is local: compare each micro-bucket only with its current and adjacent clusters.
   \end{itemize}
+\end{frame}
+
+\begin{frame}{UCB Drift Shows Non-stationarity}
+  \centering
+  \includegraphics[width=0.72\linewidth]{figures/fig_ucb_score_drift.pdf}
+
+  UCB pressure shifts from C0/C1 early to C3/C4 later, so the scheduler is active rather than fixed.
 \end{frame}
 
 \begin{frame}{Micro-bucket Rebucketing}
   \begin{itemize}
     \item Split each task--cluster group into micro-buckets; individual samples do not move alone.
-    \item Track each micro-bucket by dynamics signature
+    \item Track each micro-bucket by dynamics signature:
     \[
       z_g=(\ell_g,s_g),
     \]
     where $\ell_g$ is recent mean $|\hat A|$ and $s_g$ is the fitted slope.
-    \item Compare standardized signatures to current-or-adjacent cluster centers:
+    \item Compare to current-or-adjacent cluster centers:
     \[
       j^\star(g)=\arg\min_{j\in\{k-1,k,k+1\}}\|\tilde z_g-\tilde z_j\|_2^2.
     \]
-    \item Apply adjacent mutual swaps only after consistent checks, keeping cluster sizes stable.
+    \item Apply adjacent mutual swaps only after consistent checks.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Step-200 Result: Math+Zebra}
-  \centering
-  \includegraphics[width=0.62\linewidth]{figures/fig_step200_math_zebra.pdf}
-  \vspace{0.5em}
-
-  Scheduler without re-bucketing improves Math by $+0.020$ and Zebra by $+0.088$ over random sampling.
-\end{frame}
-
-\begin{frame}{UCB Score Drift}
-  \centering
-  \includegraphics[width=0.72\linewidth]{figures/fig_ucb_score_drift.pdf}
-
-  UCB is active: sampling pressure shifts from C0/C1 early to C3/C4 later. This is useful adaptation, but also a drift signal that must be monitored.
-\end{frame}
-
-\begin{frame}{Experiment 1: Initial Accuracy Test}
+\begin{frame}{Experiment 1: Crude Difficulty Initialization}
   \centering
   \includegraphics[width=0.60\linewidth]{figures/fig_initial_accuracy_profile.pdf}
 
   Label-only initialization is coarse: Zebra is non-monotone across difficulty labels, and Math/Zebra have different initial accuracy scales.
 \end{frame}
 
-\begin{frame}{Experiment 1: Difficulty Labels Create Composition Drift}
+\begin{frame}{Experiment 1: Composition Drift}
   \centering
   \includegraphics[width=0.62\linewidth]{figures/fig_rebucket_composition.pdf}
 
-  No accuracy calibration: C1 becomes Zebra-heavy, and C4 is Math-only before and after re-bucketing.
+  C0 grows mainly through Math inflow; C1 becomes Zebra-heavy; C4 remains Math-only.
 \end{frame}
 
 \begin{frame}{Experiment 1: Migration Direction}
   \centering
   \includegraphics[width=0.78\linewidth]{figures/fig_inferred_transition_matrix.pdf}
 
-  Net movement can be explained by adjacent left moves, e.g. Math C1 $\rightarrow$ C0 and Zebra C3 $\rightarrow$ C2.
+  Net movement is adjacent and curriculum-like, e.g. Math C1 $\rightarrow$ C0 and Zebra C3 $\rightarrow$ C2.
 \end{frame}
 
-\begin{frame}{Experiment 2: Pending Final Result}
-  \begin{itemize}
-    \item Setting: accuracy-based initialization.
-    \item Comparison: no-rebucket vs. rebucket.
-    \item Step: 200.
-    \item Status: result not available yet; table is intentionally left pending in the report.
-  \end{itemize}
+\begin{frame}{Experiment 2: Accuracy Initialization}
+  \begin{center}
+  \begin{tabular}{lccc}
+    \toprule
+    Run & Step & Math & Zebra \\
+    \midrule
+    Random baseline & 200 & 0.460 & 0.250 \\
+    Acc-init, no rebucket & 100 & 0.480 & 0.263 \\
+    Acc-init, no rebucket & 200 & 0.500 & 0.300 \\
+    Acc-init, rebucket & 200 & pending & pending \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Accuracy initialization improves the no-rebucket run; the rebucketing result is still pending.
 \end{frame}
 
-\begin{frame}{Mechanism Check}
+\begin{frame}{Step-200 Result: Math+Zebra}
   \centering
-  \includegraphics[width=0.95\linewidth]{figures/fig_toy_rebucket_guardrails.pdf}
+  \includegraphics[width=0.62\linewidth]{figures/fig_step200_math_zebra.pdf}
+  \vspace{0.4em}
 
-  Toy simulation verifies that only persistent outliers migrate.
+  Difficulty-init no-rebucket DURCL improves Math by $+0.020$ and Zebra by $+0.088$ over random sampling.
 \end{frame}
 
 \begin{frame}{Limitations}
   \begin{itemize}
     \item Current comparisons are limited-run and do not include confidence intervals.
     \item Difficulty-only initialization may not match model competence.
-    \item Re-bucketing changes task composition, not only difficulty.
-    \item Experiment 2 under accuracy-based initialization is still pending.
+    \item Rebucketing changes task composition, not only difficulty.
+    \item Accuracy-initialized rebucketing result is still pending.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{Conclusion and Next Step}
   \begin{itemize}
-    \item AES is a working learner-state-aware environment selector for Math+Zebra RL post-training.
-    \item Best current conclusion: meaningful mechanism behavior, step-200 gains, and interpretable micro-bucket drift.
-    \item Main next step: accuracy-based initialization plus multi-seed evaluation.
+    \item DURCL models curriculum scheduling as a non-stationary bandit.
+    \item Micro-bucket rebucketing corrects local cluster mismatch with adjacent mutual swaps.
+    \item Current evidence: UCB drift, step-200 gains, and interpretable composition correction.
+    \item Main next step: finish acc-init rebucketing and run multi-seed evaluation.
   \end{itemize}
 \end{frame}
 
