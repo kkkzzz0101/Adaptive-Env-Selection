@@ -34,6 +34,40 @@ bash scripts/run_baseline_random_dump_2gpu.sh
 
 For larger machines, increase `CUDA_VISIBLE_DEVICES` and `N_GPUS_PER_NODE` (script supports env overrides).
 
+## Current Experiment Results (Difficulty-init + Rebucket)
+
+### Step-200 validate comparison
+- random baseline:
+  - `math_train = 0.460`
+  - `zebra_train = 0.250`
+- no-rebucket scheduler:
+  - `math_train = 0.480`
+  - `zebra_train = 0.338`
+
+### Rebucket highlights
+- rebucket 100 -> 300 (step 300 validate):
+  - `math_train = 0.520`
+  - `zebra_train = 0.287`
+- rebucket step 200 validate:
+  - `math_train = 0.540`
+  - `zebra_train = 0.287`
+
+### Baseline 200 -> 300 reference
+- final:
+  - `math_train = 0.560`
+  - `zebra_train = 0.275`
+
+## Main Analysis Direction
+
+- Even with coarse difficulty-only initialization, rebucketing already shows meaningful structural correction signals.
+- If initialization is changed to accuracy-based grouping, rebucketing is expected to be cleaner (less noisy drift) and more likely to yield stronger gains.
+
+## Detailed Report
+- `docs/result_report.md`
+
+## Ongoing Work
+- Acc-based rebucket experiments are currently running; updated comparison tables/plots will be pushed once completed.
+
 ## Notes
 - Runtime artifacts (`checkpoints/`, `logs/`, `outputs/`) are intentionally git-ignored.
 - This repo tracks only AES-related hotfix files under `references/DUMP/` rather than the full vendor tree.

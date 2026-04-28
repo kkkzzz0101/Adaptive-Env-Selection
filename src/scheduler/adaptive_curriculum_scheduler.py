@@ -352,7 +352,8 @@ class AdaptiveCurriculumScheduler:
                 if self._is_active(self.samples[sid])
                 and self.samples[sid].obs_count >= self.cfg.min_obs_for_rebucket
             ]
-            if not eligible_ids:
+            # Re-bucketing requires enough active evidence to define a stable drift band.
+            if len(eligible_ids) < 2:
                 continue
 
             values = [self.samples[sid].s for sid in eligible_ids]
@@ -389,16 +390,21 @@ class AdaptiveCurriculumScheduler:
                 if target is None or target == cid:
                     continue
 
+                trigger_count = state.upward_streak if direction == "easier" else state.downward_streak
                 self._migrate_sample(state, from_cluster=cid, to_cluster=target, step=self.global_step)
                 migrations.append(
                     {
+                        "step": self.global_step,
                         "sample_id": sid,
                         "from_cluster": cid,
                         "to_cluster": target,
                         "direction": direction,
+                        "s_i": state.s,
                         "delta": delta,
                         "mu": mu,
                         "sigma": sigma,
+                        "obs_count": state.obs_count,
+                        "consecutive_trigger_count": trigger_count,
                     }
                 )
 

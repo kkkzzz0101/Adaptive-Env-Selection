@@ -1,0 +1,40 @@
+seed: 42
+
+scheduler:
+  enabled: true
+  num_clusters: 3
+  decay: 0.95
+  ucb_beta: 1.0
+  softmax_tau: 0.2
+  prob_floor_eps: 0.05
+  warmup_steps: 20
+  rebucket_interval: 10
+  active_window: 40
+  min_obs_for_rebucket: 5
+  migration_gamma: 2.0
+  migration_consecutive: 3
+  allow_only_neighbor_migration: true
+  allow_reverse_migration: false
+
+sampling:
+  with_replacement: true
+  batch_size: 16
+
+data:
+  total_samples: 420
+  cluster_layout:
+    easy: 140
+    medium: 140
+    hard: 140
+
+trainer:
+  total_training_steps: 60
+  update_scheduler_every_step: true
+  enable_rebucketing: true
+
+logging:
+  verbose: true
+  log_every_steps: 1
+  save_cluster_stats: true
+  save_sample_stats: true
+  save_migration_events: true
