@@ -126,11 +126,11 @@
     Random baseline & 200 & 0.460 & 0.250 \\
     Acc-init, no rebucket & 100 & 0.480 & 0.263 \\
     Acc-init, no rebucket & 200 & 0.500 & 0.300 \\
-    Acc-init, rebucket & 200 & pending & pending \\
+    Acc-init, rebucket & 200 & 0.540 & 0.300 \\
     \bottomrule
   \end{tabular}
   \end{center}
-  Accuracy initialization improves the no-rebucket run; the rebucketing result is still pending.
+  Accuracy-initialized rebucketing improves Math over no-rebucket and matches Zebra.
 \end{frame}
 
 \begin{frame}{Step-200 Result: Math+Zebra}
@@ -146,7 +146,7 @@
     \item Current comparisons are limited-run and do not include confidence intervals.
     \item Difficulty-only initialization may not match model competence.
     \item Rebucketing changes task composition, not only difficulty.
-    \item Accuracy-initialized rebucketing result is still pending.
+    \item Accuracy-initialized rebucketing is now positive on Math, but still single-run.
   \end{itemize}
 \end{frame}
 
@@ -155,7 +155,7 @@
     \item DURCL models curriculum scheduling as a non-stationary bandit.
     \item Micro-bucket rebucketing corrects local cluster mismatch with adjacent mutual swaps.
     \item Current evidence: UCB drift, step-200 gains, and interpretable composition correction.
-    \item Main next step: finish acc-init rebucketing and run multi-seed evaluation.
+    \item Main next step: multi-seed evaluation and task-balance diagnostics.
   \end{itemize}
 \end{frame}
 

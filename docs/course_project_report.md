@@ -7,7 +7,7 @@ Date: 2026-04-28
 
 Reinforcement-learning post-training for large language models usually mixes multiple task distributions. This project focuses on a minimal but heterogeneous Math+Zebra setting: mathematical problem solving and logic puzzles. Uniform or random sampling ignores that different distributions can become more or less useful as the model learns. This project studies DURCL, Automated Distribution-Level Rebucketing Curriculum Learning, an online curriculum mechanism that groups training examples into difficulty clusters, samples clusters with an Upper Confidence Bound (UCB)-style policy, and periodically refines cluster membership through micro-bucket rebucketing.
 
-The current implementation integrates Math+Zebra reasoning tasks with a DUMP/verl training path and a standalone DURCL scheduler. The strongest current result is not a universal downstream accuracy claim. Rather, the evidence shows that DURCL produces meaningful and interpretable redistribution signals: a no-rebucket scheduler improves Math and Zebra validation accuracy at step 200 over a random baseline, while rebucketing changes cluster composition in structured ways. Under accuracy-based initialization, the available no-rebucket validation result reaches 0.500 on Math and 0.300 on Zebra at step 200; the corresponding rebucketing run is still pending. The main conclusion is therefore that DURCL is a promising learner-state-aware environment selection mechanism, but stricter multi-seed evaluation is still needed.
+The current implementation integrates Math+Zebra reasoning tasks with a DUMP/verl training path and a standalone DURCL scheduler. The strongest current result is not a universal downstream accuracy claim. Rather, the evidence shows that DURCL produces meaningful and interpretable redistribution signals: a no-rebucket scheduler improves Math and Zebra validation accuracy at step 200 over a random baseline, while rebucketing changes cluster composition in structured ways. Under accuracy-based initialization, rebucketing reaches 0.540 on Math and 0.300 on Zebra at step 200, improving Math over the no-rebucket variant while matching Zebra. The main conclusion is therefore that DURCL is a promising learner-state-aware environment selection mechanism, but stricter multi-seed evaluation is still needed.
 
 ## 1. Introduction
 
@@ -232,15 +232,15 @@ This supports the transition-matrix story: migration is not a random jump patter
 
 ### 5.5 Experiment 2: Accuracy-Based Initialization
 
-The second experiment repeats the 200-step comparison under accuracy-based initialization. It compares no-rebucket and rebucket variants after the initial buckets are built from accuracy rather than raw difficulty labels. This is the direct test of the next hypothesis from Experiment 1: better initial buckets should lead to cleaner and more useful corrections. The no-rebucket validation result is now available; the corresponding rebucketing run is still pending.
+The second experiment repeats the 200-step comparison under accuracy-based initialization. It compares no-rebucket and rebucket variants after the initial buckets are built from accuracy rather than raw difficulty labels. This is the direct test of the next hypothesis from Experiment 1: better initial buckets should lead to cleaner and more useful corrections. Both the no-rebucket and rebucketing validation results are now available.
 
 | Run | Step | Math | Zebra |
 |---|---:|---:|---:|
 | Acc-init, no re-bucket | 100 | 0.480 | 0.263 |
 | Acc-init, no re-bucket | 200 | 0.500 | 0.300 |
-| Acc-init, re-bucket | 200 | pending | pending |
+| Acc-init, re-bucket | 200 | 0.540 | 0.300 |
 
-The available no-rebucket result improves over the random step-200 reference of 0.460 on Math and 0.250 on Zebra. This supports the interpretation that accuracy-based initialization is cleaner than raw difficulty labels. The missing rebucketing run remains the key test of whether micro-bucket correction adds value after a better initialization.
+The no-rebucket result improves over the random step-200 reference of 0.460 on Math and 0.250 on Zebra. Adding rebucketing further improves Math from 0.500 to 0.540 while keeping Zebra at 0.300. This supports the interpretation that accuracy-based initialization gives cleaner buckets and that micro-bucket correction can add value after a better initialization, although the result still needs multi-seed verification.
 
 ### 5.6 Toy Re-Bucketing Simulation
 
@@ -258,11 +258,11 @@ This supports the mechanism-level correctness of the rebucketing rule: it respon
 
 The evidence supports three claims.
 
-First, DURCL can produce useful adaptive sampling behavior. The no-rebucket scheduler improves both Math and Zebra at step 200 in the two-task experiment, and the accuracy-initialized no-rebucket run improves to 0.500 on Math and 0.300 on Zebra. The cluster probability trajectory also changes over training, showing that the scheduler is not behaving like a fixed sampler.
+First, DURCL can produce useful adaptive sampling behavior. The no-rebucket scheduler improves both Math and Zebra at step 200 in the two-task experiment, and the accuracy-initialized rebucketing run reaches 0.540 on Math and 0.300 on Zebra. The cluster probability trajectory also changes over training, showing that the scheduler is not behaving like a fixed sampler.
 
 Second, rebucketing produces meaningful structural corrections. The cluster migration and composition tables show coherent redistribution patterns. This matters because the initial buckets were only difficulty-based, not learner-state-based. Rebucketing is therefore partially recovering a grouping that better reflects the observed training signal.
 
-Third, the current downstream performance story should stay conservative. The no-rebucket scheduler improves both Math and Zebra at step 200, but the rebucketing result is stronger as structural evidence than as a final-accuracy result, and the accuracy-initialized rebucketing run is still missing. The correct project claim is not "DURCL wins overall." The correct claim is: DURCL exposes and partially corrects mismatch between static difficulty buckets and online learner state, and this can improve selected task distributions, but the current initialization and migration policy are not yet robust enough for a broad final-performance claim.
+Third, the current downstream performance story should stay conservative. The no-rebucket scheduler improves both Math and Zebra at step 200, but the rebucketing result is stronger as structural evidence than as a final-accuracy result, and the accuracy-initialized improvement is still a single-run result. The correct project claim is not "DURCL wins overall." The correct claim is: DURCL exposes and partially corrects mismatch between static difficulty buckets and online learner state, and this can improve selected task distributions, but the current initialization and migration policy are not yet robust enough for a broad final-performance claim.
 
 ## 7. Limitations
 
@@ -271,14 +271,14 @@ The current project has several important limitations.
 1. The strongest experiments appear to be limited-run comparisons rather than multi-seed evaluations with confidence intervals.
 2. The current initialization is difficulty-based. Difficulty labels are not necessarily aligned with the model's actual competence.
 3. Rebucketing changes task composition across clusters. This can create unintended task imbalance.
-4. The accuracy-based no-rebucket result is available, but the accuracy-based rebucketing result is still pending.
+4. The accuracy-based rebucketing result is available, but it still lacks multi-seed validation.
 5. The current report uses accuracy-style task pass rates; more detailed reward, format-validity, and per-difficulty analyses should be promoted into the main results.
 6. The migration direction rule is conservative and interpretable, but it may not be optimal for every task or every meaning of high absolute advantage.
 7. The notebook and report use checked-in summaries rather than rerunning expensive RL training.
 
 ## 8. Future Work
 
-The highest-priority next step is completing the accuracy-initialized rebucketing run. Instead of grouping examples only by nominal difficulty, DURCL should initialize buckets using observed model accuracy or pass rate per task/difficulty bucket. This should reduce noisy drift and make rebucketing corrections easier to interpret causally.
+The highest-priority next step is multi-seed validation of the accuracy-initialized rebucketing result. Instead of grouping examples only by nominal difficulty, DURCL should initialize buckets using observed model accuracy or pass rate per task/difficulty bucket. This should reduce noisy drift and make rebucketing corrections easier to interpret causally.
 
 Additional follow-ups:
 
@@ -292,7 +292,7 @@ Additional follow-ups:
 
 ## 9. Conclusion
 
-DURCL is a practical adaptive curriculum mechanism for RL-based LLM post-training over Math+Zebra environments. Its UCB sampler and micro-bucket rebucketing module are implemented and tested at the mechanism level. The present experiments show promising structural evidence and step-200 gains, but they do not yet justify a broad claim of overall superiority. The main scientific contribution of the current project is diagnosing how static difficulty buckets can mismatch the learner's online state and showing that rebucketing can produce interpretable corrections. The next stage should complete accuracy-initialized rebucketing and stricter evaluation to determine whether these structural corrections translate into robust final-performance gains.
+DURCL is a practical adaptive curriculum mechanism for RL-based LLM post-training over Math+Zebra environments. Its UCB sampler and micro-bucket rebucketing module are implemented and tested at the mechanism level. The present experiments show promising structural evidence and step-200 gains, but they do not yet justify a broad claim of overall superiority. The main scientific contribution of the current project is diagnosing how static difficulty buckets can mismatch the learner's online state and showing that rebucketing can produce interpretable corrections. The next stage should run stricter multi-seed evaluation to determine whether these structural corrections translate into robust final-performance gains.
 
 ## References
 

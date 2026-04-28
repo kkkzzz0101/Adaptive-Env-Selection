@@ -65,16 +65,21 @@ For larger machines, increase `CUDA_VISIBLE_DEVICES` and `N_GPUS_PER_NODE` (scri
   - `math_train = 0.500`
   - `zebra_train = 0.300`
 
+### Accuracy-init rebucket validation
+- step 200:
+  - `math_train = 0.540`
+  - `zebra_train = 0.300`
+
 ## Main Analysis Direction
 
 - Even with coarse difficulty-only initialization, rebucketing already shows meaningful structural correction signals.
-- Accuracy-based initialization now has a no-rebucket validation result; the corresponding rebucketing run remains the next comparison to complete.
+- Accuracy-based initialization plus rebucketing improves Math over the no-rebucket run while matching Zebra at step 200.
 
 ## Detailed Report
 - `docs/result_report.md`
 
 ## Ongoing Work
-- Acc-based rebucket results are still pending; updated comparison tables/plots should be pushed once completed.
+- Multi-seed validation and task-balance diagnostics remain needed before making a broad final-performance claim.
 
 ## Notes
 - Runtime artifacts (`checkpoints/`, `logs/`, `outputs/`) are intentionally git-ignored.
