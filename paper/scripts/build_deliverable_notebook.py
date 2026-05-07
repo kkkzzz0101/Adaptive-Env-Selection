@@ -755,6 +755,14 @@ def build_notebook() -> nbf.NotebookNode:
 
             The default eval story in this notebook focuses on `math` and `zebra`, which is the final project line.
 
+            Supported optional checkpoint interfaces:
+
+            - `AES_HF_MODEL_ID`: a Hugging Face model repository
+            - `AES_LOCAL_MODEL_PATH`: a local checkpoint directory in loadable Hugging Face / Transformers format
+            - `AES_CHECKPOINT_ARCHIVE_URL`: an optional archive link placeholder for future external hosting
+
+            Note: raw training directories such as `global_step_*` are useful for recovery, but they are not automatically loadable by the inference probe unless they have first been exported into a standard model directory.
+
             The public checkpoint target reserved for those uploads is:
             - `zkkk452/adaptive-env-selection-checkpoint`
             """
