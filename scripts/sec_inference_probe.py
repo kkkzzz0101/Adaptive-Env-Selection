@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import random
 import re
 import sys
@@ -15,7 +16,7 @@ import pandas as pd
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-ROOT = Path('/root/adaptive env selection')
+ROOT = Path(os.environ.get('AES_ROOT', Path(__file__).resolve().parents[1])).resolve()
 SEC_VERL = ROOT / 'references' / 'sec' / 'verl'
 if str(SEC_VERL) not in sys.path:
     sys.path.insert(0, str(SEC_VERL))
@@ -53,8 +54,8 @@ class ProbeRow:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description='SEC inference probe by dataset x difficulty')
     p.add_argument('--dataset', choices=['countdown', 'zebra', 'arc', 'math'], required=True)
-    p.add_argument('--model-path', default='/root/models/Qwen2.5-1.5B')
-    p.add_argument('--sec-root', default='/root/adaptive env selection/references/sec/data')
+    p.add_argument('--model-path', default=os.environ.get('AES_MODEL_PATH', 'Qwen/Qwen2.5-1.5B-Instruct'))
+    p.add_argument('--sec-root', default=str(ROOT / 'references' / 'sec' / 'data'))
     p.add_argument('--split', default='test')
     p.add_argument('--n-per-difficulty', type=int, default=20)
     p.add_argument('--rollouts', type=int, default=1)
@@ -62,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--temperature', type=float, default=0.0)
     p.add_argument('--top-p', type=float, default=1.0)
     p.add_argument('--seed', type=int, default=42)
-    p.add_argument('--out-dir', default='/root/adaptive env selection/experiments/baselines/results_512/sec_probe')
+    p.add_argument('--out-dir', default=str(ROOT / 'experiments' / 'baselines' / 'results_512' / 'sec_probe'))
     return p.parse_args()
 
 
