@@ -50,6 +50,7 @@ def build_notebook() -> nbf.NotebookNode:
             - If it is run inside a cloned copy of the repository, it uses the local files directly.
             - If it is run as a standalone notebook, it can download the repository snapshot from GitHub.
             - Large artifacts such as model checkpoints are intentionally loaded by link rather than embedded in the notebook.
+            - It installs a small set of missing Python packages automatically; it does not require a manual conda setup walkthrough.
 
             Heavy RL training is **not executed by default** because it requires a compatible multi-GPU environment, but the code path and command construction are included here so the full workflow is documented in one place.
             """
@@ -400,11 +401,9 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            final_rebucket = pd.DataFrame([
-                {"run": "rebucket_window_linear_80_200", "step": 100, "math": 0.440, "zebra": 0.237},
-                {"run": "rebucket_window_linear_80_200", "step": 150, "math": 0.520, "zebra": 0.237},
-                {"run": "rebucket_window_linear_80_200", "step": 200, "math": 0.580, "zebra": 0.300},
-            ])
+            final_rebucket = pd.read_csv(
+                ROOT / "experiments" / "results" / "final_rebucket_window_linear_80_200.csv"
+            )
             display(final_rebucket)
             """
         ),

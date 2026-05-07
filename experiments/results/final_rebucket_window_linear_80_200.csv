@@ -1,0 +1,4 @@
+run,step,math,zebra
+rebucket_window_linear_80_200,100,0.440,0.237
+rebucket_window_linear_80_200,150,0.520,0.237
+rebucket_window_linear_80_200,200,0.580,0.300
