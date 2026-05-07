@@ -1,0 +1,8 @@
+run,step,has_actor_weights,has_curriculum_state,has_data_pt,has_actor_hf_dir,is_complete,notes
+warm80_norebucket,80,1,1,1,1,1,Source warmup checkpoint; used to seed both follow-on runs
+norebucket_globalacc_from80_to200,100,1,1,1,1,1,Complete checkpoint
+norebucket_globalacc_from80_to200,150,0,0,0,0,0,No global_step_150 directory found on recovered machine
+norebucket_globalacc_from80_to200,200,1,1,1,1,1,Complete checkpoint
+microbucket_globalacc_from80_to200,100,1,1,1,1,1,Complete checkpoint; latest_checkpointed_iteration points here
+microbucket_globalacc_from80_to200,150,0,0,0,0,0,No global_step_150 directory found on recovered machine
+microbucket_globalacc_from80_to200,200,1,0,0,0,0,Actor weights exist but curriculum_state.pt/data.pt are missing
