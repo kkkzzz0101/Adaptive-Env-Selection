@@ -192,6 +192,8 @@ def build_notebook() -> nbf.NotebookNode:
                 {"artifact": "Scheduler source", "path": str(ROOT / "src/scheduler/adaptive_curriculum_scheduler.py"), "exists": (ROOT / "src/scheduler/adaptive_curriculum_scheduler.py").exists()},
                 {"artifact": "Eval probe", "path": str(ROOT / "scripts/sec_inference_probe.py"), "exists": (ROOT / "scripts/sec_inference_probe.py").exists()},
                 {"artifact": "Result report", "path": str(ROOT / "docs/result_report.md"), "exists": (ROOT / "docs/result_report.md").exists()},
+                {"artifact": "Composition drift summary", "path": str(ROOT / "experiments/results/window_rebucket_globalacc_80_200/composition_drift_summary.json"), "exists": (ROOT / "experiments/results/window_rebucket_globalacc_80_200/composition_drift_summary.json").exists()},
+                {"artifact": "Transition matrix summary", "path": str(ROOT / "experiments/results/window_rebucket_globalacc_80_200/inferred_transition_matrix.json"), "exists": (ROOT / "experiments/results/window_rebucket_globalacc_80_200/inferred_transition_matrix.json").exists()},
                 {"artifact": "Paper figures", "path": str(ROOT / "paper/figures"), "exists": (ROOT / "paper/figures").exists()},
             ]
             display(pd.DataFrame(asset_rows))
@@ -874,6 +876,59 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
+            final_result_table = pd.DataFrame([
+                {
+                    "run": "random baseline",
+                    "step": 200,
+                    "math_train": baseline["math_train"],
+                    "zebra_train": baseline["zebra_train"],
+                },
+                {
+                    "run": "no rebucket",
+                    "step": 200,
+                    "math_train": scheduler["math_train"],
+                    "zebra_train": scheduler["zebra_train"],
+                },
+                {
+                    "run": "window rebucket",
+                    "step": 100,
+                    "math_train": final_rebucket.loc[final_rebucket["step"] == 100, "math_train"].iloc[0],
+                    "zebra_train": final_rebucket.loc[final_rebucket["step"] == 100, "zebra_train"].iloc[0],
+                },
+                {
+                    "run": "window rebucket",
+                    "step": 150,
+                    "math_train": final_rebucket.loc[final_rebucket["step"] == 150, "math_train"].iloc[0],
+                    "zebra_train": final_rebucket.loc[final_rebucket["step"] == 150, "zebra_train"].iloc[0],
+                },
+                {
+                    "run": "window rebucket",
+                    "step": 200,
+                    "math_train": rebucket["math_train"],
+                    "zebra_train": rebucket["zebra_train"],
+                },
+            ])
+            display(final_result_table)
+
+            step200_plot_df = final_result_table[final_result_table["step"] == 200].copy()
+            step200_plot_df = step200_plot_df.set_index("run")[["math_train", "zebra_train"]]
+
+            fig, ax = plt.subplots(figsize=(8.2, 4.8))
+            step200_plot_df.plot(kind="bar", ax=ax, color=["#4C78A8", "#E45756"], width=0.72)
+            ax.set_title("Step-200 Validation Comparison")
+            ax.set_xlabel("")
+            ax.set_ylabel("Validation score")
+            ax.set_ylim(0, 0.65)
+            ax.legend(["Math", "Zebra"], frameon=False)
+            for container in ax.containers:
+                ax.bar_label(container, fmt="%.3f", padding=3, fontsize=9)
+            plt.xticks(rotation=0)
+            plt.tight_layout()
+            plt.show()
+            """
+        ),
+        code(
+            """
             fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 
             for ax, task in zip(axes, ["math_train", "zebra_train"]):
@@ -894,6 +949,130 @@ def build_notebook() -> nbf.NotebookNode:
 
             plt.tight_layout()
             plt.show()
+            """
+        ),
+        md(
+            """
+            ### Report Figures Reconstructed Inside The Notebook
+
+            The report uses two structural diagnostics to explain why rebucketing matters:
+
+            - **composition drift** under difficulty-label initialization,
+            - and the **inferred transition matrix** from initial to final micro-bucket clusters.
+
+            Instead of only embedding the paper PNG files, the notebook recreates these figures from checked-in structured data so the source numbers remain inspectable.
+            """
+        ),
+        code(
+            """
+            composition_summary = json.loads(
+                (
+                    ROOT
+                    / "experiments"
+                    / "results"
+                    / "window_rebucket_globalacc_80_200"
+                    / "composition_drift_summary.json"
+                ).read_text(encoding="utf-8")
+            )
+
+            cluster_labels = composition_summary["clusters"]
+            composition_tables = {}
+            for key in ["initial_micro_buckets", "final_micro_buckets", "initial_samples", "final_samples"]:
+                frame = pd.DataFrame(composition_summary[key], index=cluster_labels)
+                frame["total"] = frame.sum(axis=1)
+                composition_tables[key] = frame
+
+            display(composition_tables["initial_micro_buckets"])
+            display(composition_tables["final_micro_buckets"])
+            display(composition_tables["initial_samples"])
+            display(composition_tables["final_samples"])
+
+            fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+            panel_order = [
+                ("initial_micro_buckets", "Initial micro-buckets", "Micro-buckets"),
+                ("final_micro_buckets", "Final micro-buckets", "Micro-buckets"),
+                ("initial_samples", "Initial samples", "Samples"),
+                ("final_samples", "Final samples", "Samples"),
+            ]
+            colors = {"Math": "#4C78A8", "Zebra": "#E45756"}
+
+            for ax, (key, title, ylabel) in zip(axes.flatten(), panel_order):
+                frame = composition_tables[key]
+                bottom = [0] * len(frame)
+                for task in ["Math", "Zebra"]:
+                    values = frame[task].tolist()
+                    ax.bar(frame.index, values, bottom=bottom, color=colors[task], label=task)
+                    bottom = [a + b for a, b in zip(bottom, values)]
+                for idx, total in enumerate(frame["total"].tolist()):
+                    ax.text(idx, total + max(frame["total"]) * 0.02, f"{int(total)}", ha="center", fontsize=10)
+                ax.set_title(title)
+                ax.set_ylabel(ylabel)
+
+            fig.suptitle(
+                "Experiment 1: composition drift under difficulty-label initialization\\n"
+                "No accuracy calibration; initial buckets use only dataset difficulty levels",
+                fontsize=16,
+                y=0.98,
+            )
+            handles, labels = axes[0, 1].get_legend_handles_labels()
+            fig.legend(handles, labels, loc="upper right", frameon=False)
+            plt.tight_layout(rect=(0, 0, 1, 0.93))
+            plt.show()
+            """
+        ),
+        code(
+            """
+            transition_summary = json.loads(
+                (
+                    ROOT
+                    / "experiments"
+                    / "results"
+                    / "window_rebucket_globalacc_80_200"
+                    / "inferred_transition_matrix.json"
+                ).read_text(encoding="utf-8")
+            )
+
+            cluster_labels = transition_summary["clusters"]
+            transition_tables = {
+                task: pd.DataFrame(transition_summary[task], index=cluster_labels, columns=cluster_labels)
+                for task in ["Math", "Zebra"]
+            }
+            display(transition_tables["Math"])
+            display(transition_tables["Zebra"])
+
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5.2))
+            cmap = plt.cm.Blues
+            vmax = max(table.to_numpy().max() for table in transition_tables.values())
+
+            for ax, task in zip(axes, ["Math", "Zebra"]):
+                frame = transition_tables[task]
+                im = ax.imshow(frame.to_numpy(), cmap=cmap, vmin=0, vmax=vmax)
+                ax.set_title(task)
+                ax.set_xticks(range(len(cluster_labels)), cluster_labels)
+                ax.set_yticks(range(len(cluster_labels)), cluster_labels)
+                ax.set_xlabel("to")
+                ax.set_ylabel("from")
+                ax.set_xticks([x - 0.5 for x in range(1, len(cluster_labels))], minor=True)
+                ax.set_yticks([y - 0.5 for y in range(1, len(cluster_labels))], minor=True)
+                ax.grid(which="minor", color="#9AA4B2", linewidth=1.0)
+                ax.tick_params(which="minor", bottom=False, left=False)
+                for i in range(frame.shape[0]):
+                    for j in range(frame.shape[1]):
+                        value = int(frame.iat[i, j])
+                        if value:
+                            ax.text(j, i, str(value), ha="center", va="center", fontsize=12, color="#22313F")
+
+            fig.suptitle(
+                "Inferred net transfers from micro-bucket drift\\n"
+                "Rows: initial cluster; columns: final cluster. Off-diagonal mass is adjacent and toward lower-index buckets.",
+                fontsize=14,
+                y=0.98,
+            )
+            fig.colorbar(im, ax=axes.ravel().tolist(), shrink=0.8, label="micro-bucket count")
+            plt.tight_layout(rect=(0, 0, 1, 0.90))
+            plt.show()
+
+            print("Examples: Math C1 -> C0 = 3; Zebra C3 -> C2 = 2. This is inferred from aggregate composition, not raw event logs.")
             """
         ),
         code(

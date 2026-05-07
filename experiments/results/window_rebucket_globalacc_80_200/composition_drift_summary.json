@@ -1,0 +1,20 @@
+{
+  "source": "docs/result_report.md composition drift analysis",
+  "clusters": ["C0", "C1", "C2", "C3", "C4"],
+  "initial_micro_buckets": {
+    "Math": [5, 5, 5, 5, 5],
+    "Zebra": [5, 5, 5, 5, 0]
+  },
+  "final_micro_buckets": {
+    "Math": [8, 2, 6, 5, 4],
+    "Zebra": [6, 6, 5, 3, 0]
+  },
+  "initial_samples": {
+    "Math": [80, 80, 80, 80, 80],
+    "Zebra": [100, 100, 100, 100, 0]
+  },
+  "final_samples": {
+    "Math": [128, 32, 96, 80, 64],
+    "Zebra": [120, 120, 100, 60, 0]
+  }
+}
