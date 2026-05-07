@@ -109,8 +109,11 @@ def build_notebook() -> nbf.NotebookNode:
             RUN_UNIT_TESTS = True
             RUN_HEAVY_TRAINING = False
             RUN_CHECKPOINT_EVAL = False
+            INSTALL_TRAINING_EXTRAS = False
+            PREPARE_MATH_ZEBRA_DATA = False
             REGENERATE_FIGURES = False
             RERUN_TOY_SIMULATION = False
+            TRAINING_PROFILE = os.environ.get("AES_TRAINING_PROFILE", "math_zebra_rebucket_globalacc_from80_to200").strip()
 
             REPO_URL = "https://github.com/kkkzzz0101/Adaptive-Env-Selection.git"
             REPO_ZIP_URL = "https://github.com/kkkzzz0101/Adaptive-Env-Selection/archive/refs/heads/main.zip"
@@ -131,8 +134,11 @@ def build_notebook() -> nbf.NotebookNode:
                 "RUN_UNIT_TESTS": RUN_UNIT_TESTS,
                 "RUN_HEAVY_TRAINING": RUN_HEAVY_TRAINING,
                 "RUN_CHECKPOINT_EVAL": RUN_CHECKPOINT_EVAL,
+                "INSTALL_TRAINING_EXTRAS": INSTALL_TRAINING_EXTRAS,
+                "PREPARE_MATH_ZEBRA_DATA": PREPARE_MATH_ZEBRA_DATA,
                 "REGENERATE_FIGURES": REGENERATE_FIGURES,
                 "RERUN_TOY_SIMULATION": RERUN_TOY_SIMULATION,
+                "TRAINING_PROFILE": TRAINING_PROFILE,
             })
             """
         ),
@@ -181,7 +187,8 @@ def build_notebook() -> nbf.NotebookNode:
             asset_rows = [
                 {"artifact": "Repository root", "path": str(ROOT), "exists": ROOT.exists()},
                 {"artifact": "Notebook", "path": str(ROOT / "paper/deliverables/project_groupID.ipynb"), "exists": (ROOT / "paper/deliverables/project_groupID.ipynb").exists()},
-                {"artifact": "Training data", "path": str(ROOT / "references/sec/data"), "exists": (ROOT / "references/sec/data").exists()},
+                {"artifact": "Math+Zebra data", "path": str(ROOT / "experiments/baselines/data_math_zebra_800"), "exists": (ROOT / "experiments/baselines/data_math_zebra_800").exists()},
+                {"artifact": "SEC eval data", "path": str(ROOT / "references/sec/data"), "exists": (ROOT / "references/sec/data").exists()},
                 {"artifact": "Scheduler source", "path": str(ROOT / "src/scheduler/adaptive_curriculum_scheduler.py"), "exists": (ROOT / "src/scheduler/adaptive_curriculum_scheduler.py").exists()},
                 {"artifact": "Eval probe", "path": str(ROOT / "scripts/sec_inference_probe.py"), "exists": (ROOT / "scripts/sec_inference_probe.py").exists()},
                 {"artifact": "Result report", "path": str(ROOT / "docs/result_report.md"), "exists": (ROOT / "docs/result_report.md").exists()},
@@ -194,36 +201,44 @@ def build_notebook() -> nbf.NotebookNode:
             """
             ## Part I. Training Pipeline
 
-            The heavy RL runs in this project use the DUMP/verl path together with the project scheduler and SEC-format datasets.
-            This section keeps all the project-specific training ingredients in one notebook:
+            The final project story is the `math + zebra` line, not the earlier four-dataset SEC4 baseline.
+            This section therefore centers the training path that leads to the final **window-fitted linear rebucketing** result:
 
-            - the checked-in datasets,
-            - the project scheduler implementation,
-            - the data-preparation and training-entry scripts,
-            - and a portable reconstruction of the heavy training command.
+            - `math + zebra` data preparation,
+            - the adaptive scheduler / rebucketing implementation,
+            - the warm-80 and `80 -> 200` continuation setup,
+            - and a portable heavy-training command that can be launched from the notebook in a compatible GPU environment.
 
-            The notebook documents the full training path, but does **not** launch RL training unless `RUN_HEAVY_TRAINING=True`.
+            By default the notebook only documents and previews the pipeline. It launches training only if `RUN_HEAVY_TRAINING=True`.
             """
         ),
         code(
             """
-            data_root = ROOT / "references" / "sec" / "data"
-            data_files = sorted(data_root.rglob("*.parquet"))
-
             import pyarrow.parquet as pq
 
-            data_rows = []
-            for path in data_files:
+            math_zebra_root = ROOT / "experiments" / "baselines" / "data_math_zebra_800" / "mixed"
+            sec_eval_root = ROOT / "references" / "sec" / "data"
+
+            rows = []
+            for path in [math_zebra_root / "train.parquet", math_zebra_root / "val.parquet"]:
+                if path.exists():
+                    rel = path.relative_to(ROOT).as_posix()
+                    rows.append({
+                        "file": rel,
+                        "rows": pq.read_metadata(path).num_rows,
+                        "download_url": github_raw_url(rel),
+                    })
+
+            for path in sorted(sec_eval_root.rglob("*.parquet")):
                 rel = path.relative_to(ROOT).as_posix()
-                data_rows.append({
+                rows.append({
                     "file": rel,
                     "rows": pq.read_metadata(path).num_rows,
                     "download_url": github_raw_url(rel),
                 })
 
-            data_df = pd.DataFrame(data_rows).sort_values("file").reset_index(drop=True)
+            data_df = pd.DataFrame(rows).sort_values("file").reset_index(drop=True)
             display(data_df)
-            print(f"Total parquet files: {len(data_df)}")
             """
         ),
         code(
@@ -248,7 +263,16 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            show_source("scripts/run_baseline_random_dump_2gpu.sh", 1, 120)
+            for rel_path in [
+                "scripts/run_mathzebra_globalacc_to200_chain.sh",
+                "scripts/run_scheduler_norebucket_4gpu_mathzebra_globalacc_warm80.sh",
+                "scripts/run_scheduler_microbucket_4gpu_mathzebra_globalacc_from80.sh",
+            ]:
+                path = ROOT / rel_path
+                if path.exists():
+                    show_source(rel_path, 1, 160)
+                else:
+                    print(f"Missing script in current checkout: {rel_path}")
             """
         ),
         code(
@@ -268,48 +292,313 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            TRAINING_CONFIG = {
-                "model_path": os.environ.get("AES_TRAIN_MODEL_PATH", "Qwen/Qwen2.5-1.5B-Instruct"),
-                "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "0,1"),
-                "n_gpus_per_node": int(os.environ.get("N_GPUS_PER_NODE", "2")),
-                "total_training_steps": int(os.environ.get("TOTAL_TRAINING_STEPS", "1000")),
-                "save_freq": int(os.environ.get("SAVE_FREQ", "200")),
-                "test_freq": int(os.environ.get("TEST_FREQ", "200")),
-                "train_batch_size": int(os.environ.get("TRAIN_BATCH_SIZE", "32")),
-                "rollout_n": int(os.environ.get("ROLLOUT_N", "4")),
-                "max_prompt_length": int(os.environ.get("MAX_PROMPT_LENGTH", "1152")),
-                "max_response_length": int(os.environ.get("MAX_RESPONSE_LENGTH", "512")),
-                "exp_name": os.environ.get("EXP_NAME", "baseline_random_dump_2gpu_1k"),
+            TRAIN_BASE_MODEL = os.environ.get("AES_TRAIN_MODEL_PATH", "Qwen/Qwen2.5-1.5B-Instruct").strip()
+            CHECKPOINT_ROOT = Path(os.environ.get("AES_CHECKPOINT_ROOT", str(ROOT / "checkpoints"))).resolve()
+            MATH_ZEBRA_DATA_ROOT = ROOT / "experiments" / "baselines" / "data_math_zebra_800" / "mixed"
+            VERL_ROOT = ROOT / "references" / "DUMP"
+
+            MATH_ZEBRA_DATA_CONFIG = {
+                "countdown_levels": "",
+                "zebra_levels": "1,2,3,4",
+                "arc_levels": "",
+                "math_levels": "1,2,3,4,5",
+                "train_per_bucket": 100,
+                "val_per_bucket": 20,
+                "test_per_bucket": 0,
+                "math_train_per_level": 80,
+                "math_val_per_level": 10,
+                "seed": 42,
+            }
+
+            TRAINING_PROFILES = {
+                "math_zebra_baseline_step200": {
+                    "project_name": "aes_baseline_mathzebra",
+                    "exp_name": "baseline_random_dump_mathzebra800_step200",
+                    "resume": None,
+                    "scheduler_env": {},
+                    "trainer": {"steps": 200, "epochs": 30, "save_freq": 100, "test_freq": 100},
+                },
+                "math_zebra_norebucket_step200": {
+                    "project_name": "aes_scheduler_mathzebra",
+                    "exp_name": "scheduler_norebucket_mathzebra800_step200",
+                    "resume": None,
+                    "scheduler_env": {
+                        "USE_ADAPTIVE_SCHEDULER": "1",
+                        "ADAPTIVE_NUM_CLUSTERS": "5",
+                        "ADAPTIVE_WARMUP_STEPS": "1000000",
+                        "ADAPTIVE_REBUCKET_INTERVAL": "10",
+                        "ADAPTIVE_MIN_OBS": "6",
+                        "ADAPTIVE_ACTIVE_WINDOW": "80",
+                        "ADAPTIVE_DECAY": "0.6",
+                        "ADAPTIVE_UCB_BETA": "0.85",
+                        "ADAPTIVE_SOFTMAX_TAU": "0.2",
+                        "ADAPTIVE_PROB_FLOOR_EPS": "0.05",
+                        "ADAPTIVE_MIGRATION_GAMMA": "2.0",
+                        "ADAPTIVE_MIGRATION_CONSECUTIVE": "3",
+                        "ADAPTIVE_ALLOW_REVERSE_MIGRATION": "0",
+                        "ADAPTIVE_REVERSE_MIGRATION_GAMMA": "2.5",
+                        "ADAPTIVE_REVERSE_MIGRATION_CONSECUTIVE": "4",
+                        "ADAPTIVE_CALIBRATION_JSON": str(ROOT / "experiments" / "scheduler" / "calibration_math_zebra.json"),
+                        "VERL_CURRICULUM_DIAGNOSTICS": "0",
+                    },
+                    "trainer": {"steps": 200, "epochs": 30, "save_freq": 100, "test_freq": 100},
+                },
+                "math_zebra_norebucket_globalacc_warm80": {
+                    "project_name": "aes_scheduler_mathzebra_globalacc",
+                    "exp_name": "scheduler_norebucket_mathzebra800_globalacc_warm80",
+                    "resume": None,
+                    "scheduler_env": {
+                        "USE_ADAPTIVE_SCHEDULER": "1",
+                        "ADAPTIVE_NUM_CLUSTERS": "5",
+                        "ADAPTIVE_WARMUP_STEPS": "1000000",
+                        "ADAPTIVE_REBUCKET_INTERVAL": "20",
+                        "ADAPTIVE_MIN_OBS": "8",
+                        "ADAPTIVE_ACTIVE_WINDOW": "80",
+                        "ADAPTIVE_DECAY": "0.6",
+                        "ADAPTIVE_UCB_BETA": "0.85",
+                        "ADAPTIVE_SOFTMAX_TAU": "0.2",
+                        "ADAPTIVE_PROB_FLOOR_EPS": "0.05",
+                        "ADAPTIVE_MIGRATION_GAMMA": "2.0",
+                        "ADAPTIVE_MIGRATION_CONSECUTIVE": "2",
+                        "ADAPTIVE_ALLOW_REVERSE_MIGRATION": "0",
+                        "ADAPTIVE_REVERSE_MIGRATION_GAMMA": "2.5",
+                        "ADAPTIVE_REVERSE_MIGRATION_CONSECUTIVE": "4",
+                        "ADAPTIVE_MICRO_BUCKETS_PER_LEVEL": "5",
+                        "ADAPTIVE_TARGET_MICRO_BUCKET_SIZE": "20",
+                        "ADAPTIVE_TRAJECTORY_WINDOW_OBSERVATIONS": "60",
+                        "ADAPTIVE_MIN_GROUP_OBS_PER_WINDOW": "8",
+                        "ADAPTIVE_CLUSTER_MIN_MICRO_BUCKETS": "2",
+                        "ADAPTIVE_CLUSTER_COOLDOWN_STEPS": "40",
+                        "ADAPTIVE_MAX_SWAPS_PER_PAIR": "1",
+                        "ADAPTIVE_MAX_MOVES_PER_CLUSTER": "1",
+                        "ADAPTIVE_ENABLE_MOVE_SECOND": "1",
+                        "ADAPTIVE_CALIBRATION_JSON": str(ROOT / "experiments" / "scheduler" / "calibration_math_zebra.json"),
+                        "VERL_CURRICULUM_DIAGNOSTICS": "0",
+                    },
+                    "trainer": {"steps": 80, "epochs": 20, "save_freq": 80, "test_freq": 80},
+                },
+                "math_zebra_norebucket_globalacc_from80_to200": {
+                    "project_name": "aes_scheduler_mathzebra_globalacc",
+                    "exp_name": "scheduler_norebucket_mathzebra800_globalacc_from80_to200",
+                    "resume": {
+                        "project_name": "aes_scheduler_mathzebra_globalacc",
+                        "exp_name": "scheduler_norebucket_mathzebra800_globalacc_warm80",
+                        "source_step": 80,
+                    },
+                    "scheduler_env": {
+                        "USE_ADAPTIVE_SCHEDULER": "1",
+                        "ADAPTIVE_NUM_CLUSTERS": "5",
+                        "ADAPTIVE_WARMUP_STEPS": "1000000",
+                        "ADAPTIVE_REBUCKET_INTERVAL": "20",
+                        "ADAPTIVE_MIN_OBS": "8",
+                        "ADAPTIVE_ACTIVE_WINDOW": "80",
+                        "ADAPTIVE_DECAY": "0.6",
+                        "ADAPTIVE_UCB_BETA": "0.85",
+                        "ADAPTIVE_SOFTMAX_TAU": "0.2",
+                        "ADAPTIVE_PROB_FLOOR_EPS": "0.05",
+                        "ADAPTIVE_MIGRATION_GAMMA": "2.0",
+                        "ADAPTIVE_MIGRATION_CONSECUTIVE": "2",
+                        "ADAPTIVE_ALLOW_REVERSE_MIGRATION": "0",
+                        "ADAPTIVE_REVERSE_MIGRATION_GAMMA": "2.5",
+                        "ADAPTIVE_REVERSE_MIGRATION_CONSECUTIVE": "4",
+                        "ADAPTIVE_MICRO_BUCKETS_PER_LEVEL": "5",
+                        "ADAPTIVE_TARGET_MICRO_BUCKET_SIZE": "20",
+                        "ADAPTIVE_TRAJECTORY_WINDOW_OBSERVATIONS": "60",
+                        "ADAPTIVE_MIN_GROUP_OBS_PER_WINDOW": "8",
+                        "ADAPTIVE_CLUSTER_MIN_MICRO_BUCKETS": "2",
+                        "ADAPTIVE_CLUSTER_COOLDOWN_STEPS": "40",
+                        "ADAPTIVE_MAX_SWAPS_PER_PAIR": "1",
+                        "ADAPTIVE_MAX_MOVES_PER_CLUSTER": "1",
+                        "ADAPTIVE_ENABLE_MOVE_SECOND": "1",
+                        "ADAPTIVE_IGNORE_CHECKPOINT_STATE": "0",
+                        "ADAPTIVE_IGNORE_DATALOADER_CHECKPOINT": "1",
+                        "ADAPTIVE_CALIBRATION_JSON": str(ROOT / "experiments" / "scheduler" / "calibration_math_zebra.json"),
+                        "VERL_CURRICULUM_DIAGNOSTICS": "0",
+                    },
+                    "trainer": {"steps": 200, "epochs": 30, "save_freq": 100, "test_freq": 100},
+                },
+                "math_zebra_rebucket_globalacc_from80_to200": {
+                    "project_name": "aes_scheduler_mathzebra_globalacc",
+                    "exp_name": "scheduler_microbucket_mathzebra800_globalacc_from80_to200",
+                    "resume": {
+                        "project_name": "aes_scheduler_mathzebra_globalacc",
+                        "exp_name": "scheduler_norebucket_mathzebra800_globalacc_warm80",
+                        "source_step": 80,
+                    },
+                    "scheduler_env": {
+                        "USE_ADAPTIVE_SCHEDULER": "1",
+                        "ADAPTIVE_NUM_CLUSTERS": "5",
+                        "ADAPTIVE_WARMUP_STEPS": "80",
+                        "ADAPTIVE_REBUCKET_INTERVAL": "20",
+                        "ADAPTIVE_MIN_OBS": "8",
+                        "ADAPTIVE_ACTIVE_WINDOW": "80",
+                        "ADAPTIVE_DECAY": "0.6",
+                        "ADAPTIVE_UCB_BETA": "0.85",
+                        "ADAPTIVE_SOFTMAX_TAU": "0.2",
+                        "ADAPTIVE_PROB_FLOOR_EPS": "0.05",
+                        "ADAPTIVE_MIGRATION_GAMMA": "2.0",
+                        "ADAPTIVE_MIGRATION_CONSECUTIVE": "2",
+                        "ADAPTIVE_ALLOW_REVERSE_MIGRATION": "0",
+                        "ADAPTIVE_REVERSE_MIGRATION_GAMMA": "2.5",
+                        "ADAPTIVE_REVERSE_MIGRATION_CONSECUTIVE": "4",
+                        "ADAPTIVE_MICRO_BUCKETS_PER_LEVEL": "5",
+                        "ADAPTIVE_TARGET_MICRO_BUCKET_SIZE": "20",
+                        "ADAPTIVE_TRAJECTORY_WINDOW_OBSERVATIONS": "60",
+                        "ADAPTIVE_MIN_GROUP_OBS_PER_WINDOW": "8",
+                        "ADAPTIVE_CLUSTER_MIN_MICRO_BUCKETS": "2",
+                        "ADAPTIVE_CLUSTER_COOLDOWN_STEPS": "40",
+                        "ADAPTIVE_MAX_SWAPS_PER_PAIR": "1",
+                        "ADAPTIVE_MAX_MOVES_PER_CLUSTER": "1",
+                        "ADAPTIVE_ENABLE_MOVE_SECOND": "1",
+                        "ADAPTIVE_IGNORE_CHECKPOINT_STATE": "0",
+                        "ADAPTIVE_IGNORE_DATALOADER_CHECKPOINT": "1",
+                        "ADAPTIVE_CALIBRATION_JSON": str(ROOT / "experiments" / "scheduler" / "calibration_math_zebra.json"),
+                        "VERL_CURRICULUM_DIAGNOSTICS": "0",
+                    },
+                    "trainer": {"steps": 200, "epochs": 30, "save_freq": 100, "test_freq": 50},
+                },
             }
 
 
-            def build_heavy_training_command(root: Path, cfg: dict[str, object]) -> tuple[list[str], dict[str, str]]:
-                data_root = root / "experiments" / "baselines" / "data_sec4_2gpu_1k" / "mixed"
-                env = os.environ.copy()
-                env["CUDA_VISIBLE_DEVICES"] = str(cfg["cuda_visible_devices"])
-                env["PYTHONPATH"] = str(root / "references" / "DUMP") + os.pathsep + env.get("PYTHONPATH", "")
-                env["PYTORCH_CUDA_ALLOC_CONF"] = env.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+            def environment_report() -> pd.DataFrame:
+                rows = []
+                for module in ["torch", "transformers", "ray"]:
+                    try:
+                        imported = importlib.import_module(module)
+                        rows.append({"component": module, "ready": True, "detail": getattr(imported, "__version__", "unknown")})
+                    except Exception as exc:
+                        rows.append({"component": module, "ready": False, "detail": type(exc).__name__})
+                rows.append({"component": "vendored verl", "ready": VERL_ROOT.exists(), "detail": str(VERL_ROOT)})
+                try:
+                    import torch
+                    rows.append({"component": "cuda_available", "ready": bool(torch.cuda.is_available()), "detail": str(torch.cuda.device_count())})
+                except Exception as exc:
+                    rows.append({"component": "cuda_available", "ready": False, "detail": type(exc).__name__})
+                return pd.DataFrame(rows)
 
+
+            if INSTALL_TRAINING_EXTRAS:
+                ensure_packages(["transformers", "ray", "sentencepiece", "protobuf"])
+                print("Installed lightweight Python extras. Torch/CUDA still needs to match the local GPU runtime.")
+            else:
+                print("Skipping optional training-extra installation. Set INSTALL_TRAINING_EXTRAS=True to install transformers/ray helpers.")
+
+            display(environment_report())
+            print("Training base model:", TRAIN_BASE_MODEL)
+            print("Training profile:", TRAINING_PROFILE)
+            print("Checkpoint root:", CHECKPOINT_ROOT)
+            """
+        ),
+        code(
+            """
+            prepare_cmd = [
+                sys.executable,
+                str(ROOT / "scripts" / "prepare_sec4_random_dataset.py"),
+                "--countdown-levels", MATH_ZEBRA_DATA_CONFIG["countdown_levels"],
+                "--zebra-levels", MATH_ZEBRA_DATA_CONFIG["zebra_levels"],
+                "--arc-levels", MATH_ZEBRA_DATA_CONFIG["arc_levels"],
+                "--math-levels", MATH_ZEBRA_DATA_CONFIG["math_levels"],
+                "--train-per-bucket", str(MATH_ZEBRA_DATA_CONFIG["train_per_bucket"]),
+                "--val-per-bucket", str(MATH_ZEBRA_DATA_CONFIG["val_per_bucket"]),
+                "--test-per-bucket", str(MATH_ZEBRA_DATA_CONFIG["test_per_bucket"]),
+                "--math-train-per-level", str(MATH_ZEBRA_DATA_CONFIG["math_train_per_level"]),
+                "--math-val-per-level", str(MATH_ZEBRA_DATA_CONFIG["math_val_per_level"]),
+                "--seed", str(MATH_ZEBRA_DATA_CONFIG["seed"]),
+                "--out-dir", str(MATH_ZEBRA_DATA_ROOT.parent),
+            ]
+
+            print("Math+Zebra data-preparation command:")
+            print(" ".join(prepare_cmd))
+
+            if PREPARE_MATH_ZEBRA_DATA:
+                subprocess.run(prepare_cmd, cwd=ROOT, check=True)
+            else:
+                print("Dataset preparation is skipped by default because the checked-in math+zebra parquet files are already available.")
+            """
+        ),
+        code(
+            """
+            training_profile_df = pd.DataFrame([
+                {
+                    "profile": name,
+                    "project_name": spec["project_name"],
+                    "exp_name": spec["exp_name"],
+                    "resume_from": f"{spec['resume']['exp_name']}@{spec['resume']['source_step']}" if spec["resume"] else "",
+                    "steps": spec["trainer"]["steps"],
+                    "test_freq": spec["trainer"]["test_freq"],
+                    "scheduler": "window rebucket" if "microbucket" in spec["exp_name"] else ("no rebucket" if "scheduler" in spec["exp_name"] else "random baseline"),
+                }
+                for name, spec in TRAINING_PROFILES.items()
+            ])
+            display(training_profile_df)
+            """
+        ),
+        code(
+            """
+            COMMON_TRAIN_KWARGS = {
+                "train_batch_size": 32,
+                "val_batch_size": 64,
+                "rollout_n": 4,
+                "max_prompt_length": 960,
+                "max_response_length": 384,
+                "actor_ppo_micro_batch_size_per_gpu": 1,
+                "critic_ppo_micro_batch_size_per_gpu": 2,
+                "critic_forward_micro_batch_size_per_gpu": 2,
+                "rollout_micro_batch_size": 2,
+                "actor_logprob_micro_batch_size": 1,
+                "ref_logprob_micro_batch_size": 1,
+                "gpu_memory_utilization": 0.85,
+                "max_num_batched_tokens": 16384,
+                "max_num_seqs": 2048,
+                "n_gpus_per_node": int(os.environ.get("N_GPUS_PER_NODE", "4")),
+                "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "0,1,2,3"),
+            }
+
+
+            def prepare_resume_link(spec: dict[str, object]) -> None:
+                resume = spec["resume"]
+                if not resume:
+                    return
+                source_dir = CHECKPOINT_ROOT / str(resume["project_name"]) / str(resume["exp_name"]) / f"global_step_{resume['source_step']}"
+                target_dir = CHECKPOINT_ROOT / str(spec["project_name"]) / str(spec["exp_name"])
+                target_dir.mkdir(parents=True, exist_ok=True)
+                link_path = target_dir / f"global_step_{resume['source_step']}"
+                if not link_path.exists():
+                    link_path.symlink_to(source_dir)
+                (target_dir / "latest_checkpointed_iteration.txt").write_text(str(resume["source_step"]), encoding="utf-8")
+
+
+            def build_training_command(profile_name: str) -> tuple[list[str], dict[str, str]]:
+                spec = TRAINING_PROFILES[profile_name]
+                prepare_resume_link(spec)
+                env = os.environ.copy()
+                env["CUDA_VISIBLE_DEVICES"] = COMMON_TRAIN_KWARGS["cuda_visible_devices"]
+                env["PYTHONPATH"] = str(VERL_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+                env["PYTORCH_CUDA_ALLOC_CONF"] = env.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+                env["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = env.get("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+                env.update(spec["scheduler_env"])
+
+                run_dir = CHECKPOINT_ROOT / spec["project_name"] / spec["exp_name"]
                 cmd = [
                     sys.executable,
                     "-m",
                     "verl.trainer.main_ppo",
                     "algorithm.adv_estimator=grpo",
-                    f"data.train_files={data_root / 'train.parquet'}",
-                    f"data.val_files={data_root / 'val.parquet'}",
-                    f"data.train_batch_size={cfg['train_batch_size']}",
-                    "data.val_batch_size=64",
-                    "data.enable_curriculum_learning=False",
+                    f"data.train_files={MATH_ZEBRA_DATA_ROOT / 'train.parquet'}",
+                    f"data.val_files={MATH_ZEBRA_DATA_ROOT / 'val.parquet'}",
+                    f"data.train_batch_size={COMMON_TRAIN_KWARGS['train_batch_size']}",
+                    f"data.val_batch_size={COMMON_TRAIN_KWARGS['val_batch_size']}",
+                    f"data.enable_curriculum_learning={'True' if spec['scheduler_env'] else 'False'}",
                     "data.data_source_key=null",
-                    f"data.max_prompt_length={cfg['max_prompt_length']}",
-                    f"data.max_response_length={cfg['max_response_length']}",
-                    f"actor_rollout_ref.model.path={cfg['model_path']}",
+                    f"data.max_prompt_length={COMMON_TRAIN_KWARGS['max_prompt_length']}",
+                    f"data.max_response_length={COMMON_TRAIN_KWARGS['max_response_length']}",
+                    f"actor_rollout_ref.model.path={TRAIN_BASE_MODEL}",
                     "actor_rollout_ref.model.use_remove_padding=False",
                     "actor_rollout_ref.model.enable_gradient_checkpointing=True",
                     "actor_rollout_ref.actor.use_dynamic_bsz=True",
                     "actor_rollout_ref.actor.optim.lr=1e-6",
-                    f"actor_rollout_ref.actor.ppo_mini_batch_size={cfg['train_batch_size']}",
-                    "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1",
+                    f"actor_rollout_ref.actor.ppo_mini_batch_size={COMMON_TRAIN_KWARGS['train_batch_size']}",
+                    f"actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu={COMMON_TRAIN_KWARGS['actor_ppo_micro_batch_size_per_gpu']}",
                     "actor_rollout_ref.actor.ppo_max_token_len_per_gpu=8192",
                     "actor_rollout_ref.actor.use_kl_loss=True",
                     "actor_rollout_ref.actor.kl_loss_coef=0.001",
@@ -317,53 +606,62 @@ def build_notebook() -> nbf.NotebookNode:
                     "actor_rollout_ref.actor.fsdp_config.param_offload=False",
                     "actor_rollout_ref.actor.fsdp_config.optimizer_offload=False",
                     "actor_rollout_ref.ref.fsdp_config.param_offload=False",
-                    "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1",
+                    f"actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu={COMMON_TRAIN_KWARGS['ref_logprob_micro_batch_size']}",
                     "actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=8192",
                     "actor_rollout_ref.rollout.name=hf",
-                    f"actor_rollout_ref.rollout.n={cfg['rollout_n']}",
+                    f"actor_rollout_ref.rollout.n={COMMON_TRAIN_KWARGS['rollout_n']}",
                     "actor_rollout_ref.rollout.temperature=1.0",
                     "actor_rollout_ref.rollout.top_p=1.0",
                     "actor_rollout_ref.rollout.top_k=0",
                     "actor_rollout_ref.rollout.do_sample=True",
                     "actor_rollout_ref.rollout.tensor_model_parallel_size=1",
-                    "+actor_rollout_ref.rollout.micro_batch_size=1",
-                    "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1",
+                    f"+actor_rollout_ref.rollout.micro_batch_size={COMMON_TRAIN_KWARGS['rollout_micro_batch_size']}",
+                    f"actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu={COMMON_TRAIN_KWARGS['actor_logprob_micro_batch_size']}",
                     "actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=8192",
-                    f"critic.model.path={cfg['model_path']}",
-                    f"critic.model.tokenizer_path={cfg['model_path']}",
+                    f"actor_rollout_ref.rollout.gpu_memory_utilization={COMMON_TRAIN_KWARGS['gpu_memory_utilization']}",
+                    f"actor_rollout_ref.rollout.max_num_batched_tokens={COMMON_TRAIN_KWARGS['max_num_batched_tokens']}",
+                    f"actor_rollout_ref.rollout.max_num_seqs={COMMON_TRAIN_KWARGS['max_num_seqs']}",
+                    f"critic.model.path={TRAIN_BASE_MODEL}",
+                    f"critic.model.tokenizer_path={TRAIN_BASE_MODEL}",
                     "critic.model.use_remove_padding=False",
                     "critic.model.enable_gradient_checkpointing=False",
                     "critic.optim.lr=1e-5",
-                    "critic.ppo_micro_batch_size_per_gpu=1",
-                    "critic.forward_micro_batch_size_per_gpu=1",
+                    f"critic.ppo_micro_batch_size_per_gpu={COMMON_TRAIN_KWARGS['critic_ppo_micro_batch_size_per_gpu']}",
+                    f"critic.forward_micro_batch_size_per_gpu={COMMON_TRAIN_KWARGS['critic_forward_micro_batch_size_per_gpu']}",
                     "critic.ppo_max_token_len_per_gpu=12288",
                     "algorithm.kl_ctrl.kl_coef=0.001",
                     "trainer.critic_warmup=0",
                     "trainer.logger=['console']",
-                    "trainer.project_name=aes_baseline_dump",
-                    f"trainer.experiment_name={cfg['exp_name']}",
-                    f"trainer.n_gpus_per_node={cfg['n_gpus_per_node']}",
+                    f"trainer.project_name={spec['project_name']}",
+                    f"trainer.experiment_name={spec['exp_name']}",
+                    f"trainer.n_gpus_per_node={COMMON_TRAIN_KWARGS['n_gpus_per_node']}",
                     "trainer.nnodes=1",
-                    f"trainer.default_local_dir={root / 'checkpoints' / 'aes_baseline_dump' / str(cfg['exp_name'])}",
+                    f"trainer.default_local_dir={run_dir}",
                     "trainer.default_hdfs_dir=null",
-                    f"trainer.save_freq={cfg['save_freq']}",
-                    f"trainer.test_freq={cfg['test_freq']}",
-                    "trainer.total_epochs=1",
+                    f"trainer.save_freq={spec['trainer']['save_freq']}",
+                    f"trainer.test_freq={spec['trainer']['test_freq']}",
+                    f"trainer.total_epochs={spec['trainer']['epochs']}",
                     "+trainer.val_before_train=False",
-                    f"trainer.total_training_steps={cfg['total_training_steps']}",
+                    f"trainer.total_training_steps={spec['trainer']['steps']}",
                 ]
                 return cmd, env
 
 
-            cmd, env = build_heavy_training_command(ROOT, TRAINING_CONFIG)
-            print("Portable heavy-training command preview:")
-            print(" ".join(str(x) for x in cmd[:12]), "...")
+            train_parquet = MATH_ZEBRA_DATA_ROOT / "train.parquet"
+            val_parquet = MATH_ZEBRA_DATA_ROOT / "val.parquet"
+            if not (train_parquet.exists() and val_parquet.exists()):
+                raise FileNotFoundError("math+zebra parquet files are missing. Set PREPARE_MATH_ZEBRA_DATA=True to regenerate them.")
+
+            cmd, env = build_training_command(TRAINING_PROFILE)
+            print("Training command preview for", TRAINING_PROFILE)
+            print(" ".join(str(x) for x in cmd[:18]), "...")
+            print("This profile will download or reuse the base model:", TRAIN_BASE_MODEL)
 
             if RUN_HEAVY_TRAINING:
-                print("Launching heavy RL training. This requires the original multi-GPU environment and full verl dependencies.")
+                print("Launching heavy RL training. This requires a compatible multi-GPU CUDA environment and vendored verl dependencies.")
                 subprocess.run(cmd, cwd=ROOT, env=env, check=True)
             else:
-                print("Heavy RL training is skipped by default. Set RUN_HEAVY_TRAINING=True only in a compatible multi-GPU environment.")
+                print("Heavy RL training is skipped by default. Set RUN_HEAVY_TRAINING=True only after the environment report is ready.")
             """
         ),
         md(
@@ -372,15 +670,16 @@ def build_notebook() -> nbf.NotebookNode:
 
             The notebook supports two evaluation modes:
 
-            1. **Default**: load the checked-in CSV summaries already stored in the repository.
-            2. **Optional checkpoint eval**: load a model checkpoint from Hugging Face, a local path, or an extracted archive and run the SEC inference probe.
+            1. **Default**: load the checked-in `math + zebra` result summaries already stored in the repository.
+            2. **Optional checkpoint eval**: load a checkpoint from Hugging Face or a local path and run the SEC inference probe.
 
-            This design keeps the notebook lightweight for grading while still documenting the complete evaluation path.
+            This keeps the notebook lightweight for grading while still documenting the eval path for the two checkpoint targets we still care about:
 
-            The default public checkpoint target is:
+            - the `baseline_mathzebra200` family,
+            - and the `window rebucket` run recovered at step 100.
+
+            The public checkpoint target reserved for those uploads is:
             - `zkkk452/adaptive-env-selection-checkpoint`
-
-            At the time this notebook was finalized, the training instance that stores the exported checkpoint was affected by a platform login issue, so this Hugging Face repository is currently a public placeholder that will receive the model files once the instance becomes accessible again.
             """
         ),
         md(
@@ -459,26 +758,15 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            def weighted_pass_rate(path: Path) -> float:
-                df = pd.read_csv(path)
-                return float((df["n"] * df["task_pass_rate"]).sum() / df["n"].sum())
+            recovered_inventory = pd.read_csv(
+                ROOT / "experiments" / "results" / "window_rebucket_globalacc_80_200" / "checkpoint_inventory.csv"
+            )
+            recovered_signature = pd.read_csv(
+                ROOT / "experiments" / "results" / "window_rebucket_globalacc_80_200" / "step100_signature_summary.csv"
+            )
 
-
-            eval_root = ROOT / "experiments" / "eval_ckpt400"
-            rows = []
-            for run in ["baseline400", "scheduler400"]:
-                for dataset in ["countdown", "zebra", "arc", "math"]:
-                    csv_path = eval_root / run / dataset / f"{dataset}_test_summary.csv"
-                    rows.append({
-                        "run": run,
-                        "dataset": dataset,
-                        "weighted_task_pass_rate": round(weighted_pass_rate(csv_path), 3),
-                        "source_csv": csv_path.relative_to(ROOT).as_posix(),
-                    })
-
-            ckpt400_df = pd.DataFrame(rows)
-            display(ckpt400_df)
-            display(ckpt400_df.pivot(index="dataset", columns="run", values="weighted_task_pass_rate"))
+            display(recovered_inventory)
+            display(recovered_signature)
             """
         ),
         code(
