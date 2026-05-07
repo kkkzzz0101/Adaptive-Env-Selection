@@ -1,3 +1,4 @@
+# Core notebook / analysis dependencies
 ipython==8.27.0
 ipykernel>=6.29
 nbformat>=5.10
@@ -9,8 +10,14 @@ pyarrow>=17.0
 pillow==12.2.0
 reportlab==4.4.9
 pytest>=8.3
+
+# Inference / checkpoint loading
 torch==2.5.0
 transformers>=4.48,<5
 accelerate>=1.0
 sentencepiece>=0.2
 safetensors>=0.4
+
+# Note:
+# Heavy RL training additionally depends on the vendored verl/DUMP stack under
+# references/DUMP and a compatible CUDA multi-GPU runtime.
