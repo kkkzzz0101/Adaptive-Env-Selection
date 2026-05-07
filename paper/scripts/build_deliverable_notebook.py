@@ -777,10 +777,51 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            final_rebucket = pd.read_csv(
-                ROOT / "experiments" / "results" / "final_rebucket_window_linear_80_200.csv"
+            rebucket_json = json.loads(
+                (
+                    ROOT
+                    / "experiments"
+                    / "results"
+                    / "window_rebucket_globalacc_80_200"
+                    / "window_rebucket_validation_results.json"
+                ).read_text(encoding="utf-8")
             )
+            final_rebucket = pd.DataFrame(rebucket_json["metrics"])
+            final_rebucket["run"] = rebucket_json["run"]
             display(final_rebucket)
+            """
+        ),
+        code(
+            """
+            cluster_snapshot_json = json.loads(
+                (
+                    ROOT
+                    / "experiments"
+                    / "results"
+                    / "window_rebucket_globalacc_80_200"
+                    / "norebucket_cluster_weight_snapshots.json"
+                ).read_text(encoding="utf-8")
+            )
+            cluster_snapshot_df = pd.DataFrame(cluster_snapshot_json["clusters"])
+            display(cluster_snapshot_df)
+
+            fig, ax = plt.subplots(figsize=(8.5, 4.8))
+            cluster_cols = [c for c in cluster_snapshot_df.columns if c.startswith("cluster_")]
+            for col in cluster_cols:
+                ax.plot(
+                    cluster_snapshot_df["step"],
+                    cluster_snapshot_df[col],
+                    marker="o",
+                    linewidth=2,
+                    label=col.replace("_", " ").title(),
+                )
+            ax.set_title("No-Rebucket Scheduler Cluster Weight Snapshots")
+            ax.set_xlabel("Step")
+            ax.set_ylabel("Cluster weight / A_mean snapshot")
+            ax.legend(ncol=3, fontsize=8)
+            ax.set_xticks(cluster_snapshot_df["step"].tolist())
+            plt.tight_layout()
+            plt.show()
             """
         ),
         code(
@@ -788,46 +829,60 @@ def build_notebook() -> nbf.NotebookNode:
             mz = pd.read_csv(ROOT / "experiments" / "results" / "math_zebra_2data" / "baseline_vs_norebucket_metrics.csv")
             display(mz)
 
-            step200 = mz[mz["step"] == 200].copy()
-            if len(step200) == 2:
-                baseline = step200[step200["run"] == "baseline_random"].iloc[0]
-                scheduler = step200[step200["run"] == "scheduler_no_rebucket"].iloc[0]
-                rebucket = final_rebucket[final_rebucket["step"] == 200].iloc[0]
+            norebucket = mz[mz["run"] == "scheduler_no_rebucket"][["step", "math_train", "zebra_train"]].copy()
+            norebucket = norebucket.rename(columns={"math_train": "math_no_rebucket", "zebra_train": "zebra_no_rebucket"})
 
-                final_comparison = pd.DataFrame([
-                    {
-                        "task": "Math",
-                        "random_step200": baseline["math_train"],
-                        "no_rebucket_step200": scheduler["math_train"],
-                        "rebucket_80_200_step200": rebucket["math"],
-                        "rebucket_vs_random": rebucket["math"] - baseline["math_train"],
-                        "rebucket_vs_no_rebucket": rebucket["math"] - scheduler["math_train"],
-                    },
-                    {
-                        "task": "Zebra",
-                        "random_step200": baseline["zebra_train"],
-                        "no_rebucket_step200": scheduler["zebra_train"],
-                        "rebucket_80_200_step200": rebucket["zebra"],
-                        "rebucket_vs_random": rebucket["zebra"] - baseline["zebra_train"],
-                        "rebucket_vs_no_rebucket": rebucket["zebra"] - scheduler["zebra_train"],
-                    },
-                ])
-                display(final_comparison)
+            rebucket_compare = final_rebucket[["step", "math_train", "zebra_train"]].copy()
+            rebucket_compare = rebucket_compare.rename(columns={"math_train": "math_rebucket", "zebra_train": "zebra_rebucket"})
+
+            trajectory_comparison = pd.merge(norebucket, rebucket_compare, on="step", how="outer").sort_values("step").reset_index(drop=True)
+            display(trajectory_comparison)
+
+            step200 = mz[mz["step"] == 200].copy()
+            baseline = step200[step200["run"] == "baseline_random"].iloc[0]
+            scheduler = step200[step200["run"] == "scheduler_no_rebucket"].iloc[0]
+            rebucket = final_rebucket[final_rebucket["step"] == 200].iloc[0]
+
+            final_comparison = pd.DataFrame([
+                {
+                    "task": "Math",
+                    "random_step200": baseline["math_train"],
+                    "no_rebucket_step200": scheduler["math_train"],
+                    "rebucket_80_200_step200": rebucket["math_train"],
+                    "rebucket_vs_random": rebucket["math_train"] - baseline["math_train"],
+                    "rebucket_vs_no_rebucket": rebucket["math_train"] - scheduler["math_train"],
+                },
+                {
+                    "task": "Zebra",
+                    "random_step200": baseline["zebra_train"],
+                    "no_rebucket_step200": scheduler["zebra_train"],
+                    "rebucket_80_200_step200": rebucket["zebra_train"],
+                    "rebucket_vs_random": rebucket["zebra_train"] - baseline["zebra_train"],
+                    "rebucket_vs_no_rebucket": rebucket["zebra_train"] - scheduler["zebra_train"],
+                },
+            ])
+            display(final_comparison)
             """
         ),
         code(
             """
             fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 
-            for ax, task in zip(axes, ["math", "zebra"]):
-                ax.plot(final_rebucket["step"], final_rebucket[task], marker="o", linewidth=2.2)
-                ax.set_title(f"Rebucket 80->200 ({task.capitalize()})")
+            for ax, task in zip(axes, ["math_train", "zebra_train"]):
+                task_label = "Math" if task == "math_train" else "Zebra"
+                nr_col = "math_no_rebucket" if task == "math_train" else "zebra_no_rebucket"
+                ax.plot(final_rebucket["step"], final_rebucket[task], marker="o", linewidth=2.2, label="Window rebucket")
+                ax.plot(trajectory_comparison["step"], trajectory_comparison[nr_col], marker="s", linewidth=2.0, label="No rebucket")
+                baseline_step200 = 0.46 if task == "math_train" else 0.25
+                ax.axhline(baseline_step200, linestyle="--", linewidth=1.5, color="gray", label="Random step200")
+                ax.set_title(f"{task_label} Validation Trajectory")
                 ax.set_xlabel("Step")
                 ax.set_ylabel("Validation score")
-                ax.set_xticks(final_rebucket["step"].tolist())
-                ax.set_ylim(0.20 if task == "zebra" else 0.40, 0.62)
+                ax.set_xticks(sorted(set(trajectory_comparison["step"].dropna().tolist() + final_rebucket["step"].tolist())))
+                ax.set_ylim(0.20 if task == "zebra_train" else 0.40, 0.62)
                 for _, row in final_rebucket.iterrows():
                     ax.text(row["step"], row[task] + 0.01, f"{row[task]:.3f}", ha="center", fontsize=9)
+                ax.legend(fontsize=8)
 
             plt.tight_layout()
             plt.show()

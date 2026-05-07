@@ -1,0 +1,70 @@
+{
+  "run": "scheduler_no_rebucket",
+  "source": "checked-in result report snapshots",
+  "clusters": [
+    {
+      "step": 60,
+      "cluster_0": 0.329,
+      "cluster_1": 0.301,
+      "cluster_2": 0.259,
+      "cluster_3": 0.238,
+      "cluster_4": 0.23
+    },
+    {
+      "step": 80,
+      "cluster_0": 0.25,
+      "cluster_1": 0.264,
+      "cluster_2": 0.243,
+      "cluster_3": 0.252,
+      "cluster_4": 0.235
+    },
+    {
+      "step": 100,
+      "cluster_0": 0.19,
+      "cluster_1": 0.21,
+      "cluster_2": 0.25,
+      "cluster_3": 0.256,
+      "cluster_4": 0.22
+    },
+    {
+      "step": 120,
+      "cluster_0": 0.135,
+      "cluster_1": 0.189,
+      "cluster_2": 0.204,
+      "cluster_3": 0.275,
+      "cluster_4": 0.216
+    },
+    {
+      "step": 140,
+      "cluster_0": 0.072,
+      "cluster_1": 0.148,
+      "cluster_2": 0.176,
+      "cluster_3": 0.275,
+      "cluster_4": 0.257
+    },
+    {
+      "step": 160,
+      "cluster_0": 0.101,
+      "cluster_1": 0.141,
+      "cluster_2": 0.184,
+      "cluster_3": 0.233,
+      "cluster_4": 0.255
+    },
+    {
+      "step": 180,
+      "cluster_0": 0.034,
+      "cluster_1": 0.106,
+      "cluster_2": 0.197,
+      "cluster_3": 0.225,
+      "cluster_4": 0.264
+    },
+    {
+      "step": 200,
+      "cluster_0": 0.081,
+      "cluster_1": 0.101,
+      "cluster_2": 0.182,
+      "cluster_3": 0.295,
+      "cluster_4": 0.253
+    }
+  ]
+}

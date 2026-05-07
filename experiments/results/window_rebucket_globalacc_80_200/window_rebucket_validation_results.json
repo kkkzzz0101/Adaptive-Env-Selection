@@ -1,0 +1,21 @@
+{
+  "run": "rebucket_window_linear_80_200",
+  "source": "manual validation records for the course submission",
+  "metrics": [
+    {
+      "step": 100,
+      "math_train": 0.44,
+      "zebra_train": 0.237
+    },
+    {
+      "step": 150,
+      "math_train": 0.52,
+      "zebra_train": 0.237
+    },
+    {
+      "step": 200,
+      "math_train": 0.58,
+      "zebra_train": 0.3
+    }
+  ]
+}
