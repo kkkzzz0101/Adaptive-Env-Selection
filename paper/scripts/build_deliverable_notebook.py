@@ -241,6 +241,27 @@ def build_notebook() -> nbf.NotebookNode:
             display(data_df)
             """
         ),
+        md(
+            """
+            ### Math + Zebra Dataset Composition
+
+            The final experiments use a two-source mixture:
+
+            - `zebra` difficulties: `1,2,3,4`
+            - `math` difficulties: `1,2,3,4,5`
+            - `train_per_bucket = 100`
+            - `val_per_bucket = 20`
+            - `test_per_bucket = 0`
+            - `math_train_per_level = 80`
+            - `math_val_per_level = 10`
+
+            This gives the `math_zebra_800` training set described in the final report path:
+
+            - `400` zebra training examples
+            - `400` math training examples
+            - `130` validation examples total
+            """
+        ),
         code(
             """
             def show_source(rel_path: str, start: int = 1, end: int | None = None) -> None:
@@ -263,16 +284,65 @@ def build_notebook() -> nbf.NotebookNode:
         ),
         code(
             """
-            for rel_path in [
-                "scripts/run_mathzebra_globalacc_to200_chain.sh",
-                "scripts/run_scheduler_norebucket_4gpu_mathzebra_globalacc_warm80.sh",
-                "scripts/run_scheduler_microbucket_4gpu_mathzebra_globalacc_from80.sh",
-            ]:
-                path = ROOT / rel_path
-                if path.exists():
-                    show_source(rel_path, 1, 160)
-                else:
-                    print(f"Missing script in current checkout: {rel_path}")
+            SCRIPT_SNIPPETS = {
+                "run_scheduler_norebucket_4gpu_mathzebra_globalacc_warm80.sh": '''
+            CUDA_VISIBLE_DEVICES=0,1,2,3 \\
+            USE_ADAPTIVE_SCHEDULER=1 \\
+            ADAPTIVE_NUM_CLUSTERS=5 \\
+            ADAPTIVE_WARMUP_STEPS=1000000 \\
+            ADAPTIVE_REBUCKET_INTERVAL=20 \\
+            ADAPTIVE_MIN_OBS=8 \\
+            ADAPTIVE_ACTIVE_WINDOW=80 \\
+            ADAPTIVE_DECAY=0.6 \\
+            ADAPTIVE_UCB_BETA=0.85 \\
+            ADAPTIVE_SOFTMAX_TAU=0.2 \\
+            ADAPTIVE_PROB_FLOOR_EPS=0.05 \\
+            ADAPTIVE_MIGRATION_GAMMA=2.0 \\
+            ADAPTIVE_MIGRATION_CONSECUTIVE=2 \\
+            ADAPTIVE_ALLOW_REVERSE_MIGRATION=0 \\
+            ADAPTIVE_REVERSE_MIGRATION_GAMMA=2.5 \\
+            ADAPTIVE_REVERSE_MIGRATION_CONSECUTIVE=4 \\
+            ADAPTIVE_MICRO_BUCKETS_PER_LEVEL=5 \\
+            ADAPTIVE_TARGET_MICRO_BUCKET_SIZE=20 \\
+            ADAPTIVE_TRAJECTORY_WINDOW_OBSERVATIONS=60 \\
+            ADAPTIVE_MIN_GROUP_OBS_PER_WINDOW=8 \\
+            ADAPTIVE_CLUSTER_MIN_MICRO_BUCKETS=2 \\
+            ADAPTIVE_CLUSTER_COOLDOWN_STEPS=40 \\
+            ADAPTIVE_MAX_SWAPS_PER_PAIR=1 \\
+            ADAPTIVE_MAX_MOVES_PER_CLUSTER=1 \\
+            ADAPTIVE_ENABLE_MOVE_SECOND=1 \\
+            python -m verl.trainer.main_ppo ...
+                '''.strip(),
+                "run_scheduler_norebucket_4gpu_mathzebra_globalacc_from80.sh": '''
+            CUDA_VISIBLE_DEVICES=0,1,2,3 \\
+            USE_ADAPTIVE_SCHEDULER=1 \\
+            ADAPTIVE_WARMUP_STEPS=1000000 \\
+            ADAPTIVE_IGNORE_CHECKPOINT_STATE=0 \\
+            ADAPTIVE_IGNORE_DATALOADER_CHECKPOINT=1 \\
+            python -m verl.trainer.main_ppo ...  # resume from warm80 -> step 200
+                '''.strip(),
+                "run_scheduler_microbucket_4gpu_mathzebra_globalacc_from80.sh": '''
+            CUDA_VISIBLE_DEVICES=0,1,2,3 \\
+            USE_ADAPTIVE_SCHEDULER=1 \\
+            ADAPTIVE_WARMUP_STEPS=80 \\
+            ADAPTIVE_REBUCKET_INTERVAL=20 \\
+            ADAPTIVE_ACTIVE_WINDOW=80 \\
+            ADAPTIVE_TRAJECTORY_WINDOW_OBSERVATIONS=60 \\
+            ADAPTIVE_MIN_GROUP_OBS_PER_WINDOW=8 \\
+            ADAPTIVE_MICRO_BUCKETS_PER_LEVEL=5 \\
+            python -m verl.trainer.main_ppo ...  # window rebucket from warm80 -> step 200
+                '''.strip(),
+                "run_mathzebra_globalacc_to200_chain.sh": '''
+            bash run_scheduler_norebucket_4gpu_mathzebra_globalacc_warm80.sh
+            bash run_scheduler_norebucket_4gpu_mathzebra_globalacc_from80.sh
+            bash run_scheduler_microbucket_4gpu_mathzebra_globalacc_from80.sh
+                '''.strip(),
+            }
+
+            for name, snippet in SCRIPT_SNIPPETS.items():
+                print(f"--- {name} ---")
+                print(snippet)
+                print()
             """
         ),
         code(
@@ -487,6 +557,7 @@ def build_notebook() -> nbf.NotebookNode:
             print("Training base model:", TRAIN_BASE_MODEL)
             print("Training profile:", TRAINING_PROFILE)
             print("Checkpoint root:", CHECKPOINT_ROOT)
+            print("If training starts in a fresh environment, the model downloaded here is the base model:", TRAIN_BASE_MODEL)
             """
         ),
         code(
@@ -649,18 +720,22 @@ def build_notebook() -> nbf.NotebookNode:
 
             train_parquet = MATH_ZEBRA_DATA_ROOT / "train.parquet"
             val_parquet = MATH_ZEBRA_DATA_ROOT / "val.parquet"
-            if not (train_parquet.exists() and val_parquet.exists()):
-                raise FileNotFoundError("math+zebra parquet files are missing. Set PREPARE_MATH_ZEBRA_DATA=True to regenerate them.")
+            data_ready = train_parquet.exists() and val_parquet.exists()
 
             cmd, env = build_training_command(TRAINING_PROFILE)
             print("Training command preview for", TRAINING_PROFILE)
             print(" ".join(str(x) for x in cmd[:18]), "...")
             print("This profile will download or reuse the base model:", TRAIN_BASE_MODEL)
+            print("Math+Zebra parquet present:", data_ready)
 
             if RUN_HEAVY_TRAINING:
+                if not data_ready:
+                    raise FileNotFoundError("math+zebra parquet files are missing. Set PREPARE_MATH_ZEBRA_DATA=True or provide train/val parquet files before training.")
                 print("Launching heavy RL training. This requires a compatible multi-GPU CUDA environment and vendored verl dependencies.")
                 subprocess.run(cmd, cwd=ROOT, env=env, check=True)
             else:
+                if not data_ready:
+                    print("Training preview only: the current checkout does not contain math+zebra parquet files, so real training would first require PREPARE_MATH_ZEBRA_DATA=True or externally provided parquet files.")
                 print("Heavy RL training is skipped by default. Set RUN_HEAVY_TRAINING=True only after the environment report is ready.")
             """
         ),
@@ -677,6 +752,8 @@ def build_notebook() -> nbf.NotebookNode:
 
             - the `baseline_mathzebra200` family,
             - and the `window rebucket` run recovered at step 100.
+
+            The default eval story in this notebook focuses on `math` and `zebra`, which is the final project line.
 
             The public checkpoint target reserved for those uploads is:
             - `zkkk452/adaptive-env-selection-checkpoint`
@@ -802,7 +879,7 @@ def build_notebook() -> nbf.NotebookNode:
                     env["HF_TOKEN"] = HF_TOKEN
                     env["HUGGINGFACE_HUB_TOKEN"] = HF_TOKEN
 
-                datasets = ["countdown", "zebra", "arc", "math"]
+                datasets = [x.strip() for x in os.environ.get("AES_EVAL_DATASETS", "zebra,math").split(",") if x.strip()]
                 for dataset in datasets:
                     cmd = [
                         sys.executable,
