@@ -382,6 +382,32 @@ def build_notebook() -> nbf.NotebookNode:
             At the time this notebook was finalized, the training instance that stores the exported checkpoint was affected by a platform login issue, so this Hugging Face repository is currently a public placeholder that will receive the model files once the instance becomes accessible again.
             """
         ),
+        md(
+            """
+            ### Final Rebucket Run Used In The Submission
+
+            The final notebook should center the **window-fitted linear rebucketing method** rather than the earlier rebucketing variants that still appear in some checked-in reports.
+
+            The authoritative rebucketing result used in the course submission is:
+
+            - `rebucket 80 -> 200`
+            - step 100: `math = 0.440`, `zebra = 0.237`
+            - step 150: `math = 0.520`, `zebra = 0.237`
+            - step 200: `math = 0.580`, `zebra = 0.300`
+
+            The final comparison shown below focuses on the **step-200** result.
+            """
+        ),
+        code(
+            """
+            final_rebucket = pd.DataFrame([
+                {"run": "rebucket_window_linear_80_200", "step": 100, "math": 0.440, "zebra": 0.237},
+                {"run": "rebucket_window_linear_80_200", "step": 150, "math": 0.520, "zebra": 0.237},
+                {"run": "rebucket_window_linear_80_200", "step": 200, "math": 0.580, "zebra": 0.300},
+            ])
+            display(final_rebucket)
+            """
+        ),
         code(
             """
             mz = pd.read_csv(ROOT / "experiments" / "results" / "math_zebra_2data" / "baseline_vs_norebucket_metrics.csv")
@@ -391,11 +417,45 @@ def build_notebook() -> nbf.NotebookNode:
             if len(step200) == 2:
                 baseline = step200[step200["run"] == "baseline_random"].iloc[0]
                 scheduler = step200[step200["run"] == "scheduler_no_rebucket"].iloc[0]
-                improvement = pd.DataFrame([
-                    {"task": "Math", "baseline": baseline["math_train"], "scheduler": scheduler["math_train"], "delta": scheduler["math_train"] - baseline["math_train"]},
-                    {"task": "Zebra", "baseline": baseline["zebra_train"], "scheduler": scheduler["zebra_train"], "delta": scheduler["zebra_train"] - baseline["zebra_train"]},
+                rebucket = final_rebucket[final_rebucket["step"] == 200].iloc[0]
+
+                final_comparison = pd.DataFrame([
+                    {
+                        "task": "Math",
+                        "random_step200": baseline["math_train"],
+                        "no_rebucket_step200": scheduler["math_train"],
+                        "rebucket_80_200_step200": rebucket["math"],
+                        "rebucket_vs_random": rebucket["math"] - baseline["math_train"],
+                        "rebucket_vs_no_rebucket": rebucket["math"] - scheduler["math_train"],
+                    },
+                    {
+                        "task": "Zebra",
+                        "random_step200": baseline["zebra_train"],
+                        "no_rebucket_step200": scheduler["zebra_train"],
+                        "rebucket_80_200_step200": rebucket["zebra"],
+                        "rebucket_vs_random": rebucket["zebra"] - baseline["zebra_train"],
+                        "rebucket_vs_no_rebucket": rebucket["zebra"] - scheduler["zebra_train"],
+                    },
                 ])
-                display(improvement)
+                display(final_comparison)
+            """
+        ),
+        code(
+            """
+            fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+            for ax, task in zip(axes, ["math", "zebra"]):
+                ax.plot(final_rebucket["step"], final_rebucket[task], marker="o", linewidth=2.2)
+                ax.set_title(f"Rebucket 80->200 ({task.capitalize()})")
+                ax.set_xlabel("Step")
+                ax.set_ylabel("Validation score")
+                ax.set_xticks(final_rebucket["step"].tolist())
+                ax.set_ylim(0.20 if task == "zebra" else 0.40, 0.62)
+                for _, row in final_rebucket.iterrows():
+                    ax.text(row["step"], row[task] + 0.01, f"{row[task]:.3f}", ha="center", fontsize=9)
+
+            plt.tight_layout()
+            plt.show()
             """
         ),
         code(
@@ -489,15 +549,38 @@ def build_notebook() -> nbf.NotebookNode:
             """
             ## Part III. Result Interpretation
 
-            This section collects the checked-in report, figure assets, and lightweight sanity checks that support the paper narrative.
+            This section keeps only the report context that still matches the final submission story.
+            Some checked-in documents were written before the final `rebucket 80 -> 200` result was available, so the notebook should not treat every older report number as authoritative.
+
+            The current notebook should therefore:
+
+            - use the final `rebucket 80 -> 200` step-200 result as the main rebucketing outcome,
+            - use the checked-in random and no-rebucket CSV as the baseline comparison source,
+            - and keep older rebucketing writeups only as background context.
+
             The guiding idea is that the notebook should serve as a compact, inspectable version of the repository for course submission.
             """
         ),
         code(
             """
-            report_path = ROOT / "docs" / "result_report.md"
-            report_text = report_path.read_text(encoding="utf-8")
-            display(Markdown(report_text))
+            checked_in_report_note = pd.DataFrame([
+                {
+                    "file": "docs/result_report.md",
+                    "status": "outdated for final notebook",
+                    "reason": "still summarizes the older difficulty-init rebucketing numbers",
+                },
+                {
+                    "file": "docs/course_project_report.md",
+                    "status": "outdated for final notebook",
+                    "reason": "still highlights the earlier 0.540 / 0.300 acc-init rebucketing result",
+                },
+                {
+                    "file": "README.md",
+                    "status": "partially outdated",
+                    "reason": "contains older rebucketing highlights and should not override the final 80->200 submission result",
+                },
+            ])
+            display(checked_in_report_note)
             """
         ),
         code(
