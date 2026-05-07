@@ -115,7 +115,10 @@ def build_notebook() -> nbf.NotebookNode:
             REPO_ZIP_URL = "https://github.com/kkkzzz0101/Adaptive-Env-Selection/archive/refs/heads/main.zip"
             RAW_BASE = "https://raw.githubusercontent.com/kkkzzz0101/Adaptive-Env-Selection/main"
 
-            HF_MODEL_ID = os.environ.get("AES_HF_MODEL_ID", "").strip()
+            HF_MODEL_ID = os.environ.get(
+                "AES_HF_MODEL_ID",
+                "zkkk452/adaptive-env-selection-checkpoint",
+            ).strip()
             CHECKPOINT_ARCHIVE_URL = os.environ.get("AES_CHECKPOINT_ARCHIVE_URL", "").strip()
             LOCAL_MODEL_PATH = os.environ.get("AES_LOCAL_MODEL_PATH", "").strip()
             HF_TOKEN = (
@@ -372,6 +375,11 @@ def build_notebook() -> nbf.NotebookNode:
             2. **Optional checkpoint eval**: load a model checkpoint from Hugging Face, a local path, or an extracted archive and run the SEC inference probe.
 
             This design keeps the notebook lightweight for grading while still documenting the complete evaluation path.
+
+            The default public checkpoint target is:
+            - `zkkk452/adaptive-env-selection-checkpoint`
+
+            At the time this notebook was finalized, the training instance that stores the exported checkpoint was affected by a platform login issue, so this Hugging Face repository is currently a public placeholder that will receive the model files once the instance becomes accessible again.
             """
         ),
         code(
@@ -472,8 +480,8 @@ def build_notebook() -> nbf.NotebookNode:
                 display(pd.DataFrame({"summary_csv": [p.relative_to(ROOT).as_posix() for p in summaries]}))
             else:
                 print(
-                    "Checkpoint eval is disabled. To enable it, set RUN_CHECKPOINT_EVAL=True and configure "
-                    "AES_HF_MODEL_ID or AES_LOCAL_MODEL_PATH."
+                    "Checkpoint eval is disabled. To enable it, set RUN_CHECKPOINT_EVAL=True. "
+                    f"The current default Hugging Face target is: {HF_MODEL_ID}"
                 )
             """
         ),
